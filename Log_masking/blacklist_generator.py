@@ -23,6 +23,7 @@ class TelecomBlacklistGenerator:
         self.exclusions = set()
         self.pattern_mappings = {}
         self.value_exclusions = set()
+        self.business_value_patterns = []
         
         # Load patterns from file
         self.load_patterns()
@@ -210,8 +211,126 @@ class TelecomBlacklistGenerator:
         if category == 'unknown':
             return
         
+    def contextual_validation(self, field_path: str, values: List[Any], detected_categories: List[str]) -> Dict[str, Any]:
+        """
+        Validate that field values actually match what the field name suggests
+        This prevents false positives where field names are misleading
+        """
+        final_key = self.extract_final_key(field_path).lower()
+        validation_result = {
+            'is_valid': True,
+            'failed_validations': [],
+            'passed_validations': [],
+            'confidence_adjustment': 'none'  # 'increase', 'decrease', 'none'
+        }
+        
+        if not values or not detected_categories:
+            return validation_result
+        
+        # Get sample values for validation
+        sample_values = [str(v).strip() for v in values[:3]]
+        
+        # Define field type to pattern mappings for validation
+        field_validations = {
+            # Email fields should contain email patterns
+            'email': ['email'],
+            'mail': ['email'],
+            'eml': ['email'],
+            
+            # Phone fields should contain phone patterns  
+            'phone': ['phone'],
+            'tel': ['phone'],
+            'mobile': ['phone'],
+            'cell': ['phone'],
+            'msisdn': ['phone'],
+            
+            # Date/Birth fields should contain date patterns
+            'dob': ['date_standard', 'date_text', 'date_compact'],
+            'birth': ['date_standard', 'date_text', 'date_compact'],
+            'date': ['date_standard', 'date_text', 'date_compact'],
+            
+            # SSN fields should contain SSN patterns
+            'ssn': ['ssn'],
+            'social': ['ssn'],
+            
+            # Credit card fields should contain card patterns
+            'card': ['credit_card'],
+            'creditcard': ['credit_card'],
+            'cardnumber': ['credit_card'],
+            'cardno': ['credit_card'],
+            
+            # CVV fields should contain CVV patterns
+            'cvv': ['cvv'],
+            'cvc': ['cvv'],
+            'securitycode': ['cvv'],
+            
+            # Boolean-type fields should contain boolean values
+            'verified': ['boolean'],
+            'enabled': ['boolean'],
+            'active': ['boolean'],
+            'valid': ['boolean'],
+            'preferred': ['boolean'],
+            
+            # Balance/Amount fields should contain currency patterns
+            'balance': ['currency_with_symbol', 'currency_formatted', 'currency_large_amount'],
+            'amount': ['currency_with_symbol', 'currency_formatted', 'currency_large_amount'],
+            'price': ['currency_with_symbol', 'currency_formatted', 'currency_large_amount'],
+            'cost': ['currency_with_symbol', 'currency_formatted', 'currency_large_amount'],
+            
+            # Location fields should contain coordinate patterns
+            'latitude': ['coordinates'],
+            'longitude': ['coordinates'],
+            'lat': ['coordinates'],
+            'lng': ['coordinates'],
+            'coord': ['coordinates'],
+            
+            # IP fields should contain IP patterns
+            'ip': ['ip'],
+            'ipaddress': ['ip'],
+            
+            # IMEI fields should contain IMEI patterns
+            'imei': ['imei'],
+            'deviceid': ['imei']
+        }
+        
+        # Check if field requires validation
+        validation_patterns = []
+        for field_type, patterns in field_validations.items():
+            if field_type in final_key:
+                validation_patterns.extend(patterns)
+        
+        if not validation_patterns:
+            return validation_result  # No validation required
+        
+        # Perform validation
+        for pattern_name in validation_patterns:
+            if pattern_name == 'boolean':
+                # Special handling for boolean validation
+                valid_booleans = {'true', 'false', '1', '0', 'yes', 'no', 'on', 'off', 'enabled', 'disabled'}
+                values_valid = all(str(v).lower().strip() in valid_booleans for v in sample_values)
+                
+                if values_valid:
+                    validation_result['passed_validations'].append(f"Boolean field contains valid boolean values: {sample_values}")
+                    validation_result['confidence_adjustment'] = 'decrease'  # Boolean fields are usually not sensitive
+                else:
+                    validation_result['failed_validations'].append(f"Boolean field contains non-boolean values: {sample_values}")
+                    
+            elif pattern_name in self.compiled_patterns:
+                # Check if values match the expected pattern
+                pattern = self.compiled_patterns[pattern_name]
+                matching_values = [v for v in sample_values if pattern.match(v)]
+                
+                if matching_values:
+                    validation_result['passed_validations'].append(f"Field matches expected {pattern_name} pattern: {matching_values}")
+                    validation_result['confidence_adjustment'] = 'increase'  # Values match expectations
+                else:
+                    validation_result['failed_validations'].append(f"Field suggests {pattern_name} but values don't match: {sample_values}")
+                    validation_result['is_valid'] = False
+        
+        return validation_result
+    
     def analyze_field(self, field_path: str, values: List[Any]):
-        """Analyze a single field with improved logic to reduce false positives"""
+        """Analyze a single field with improved logic and contextual validation"""
         final_key = self.extract_final_key(field_path)
         category = self.get_field_category(field_path)
         
@@ -239,13 +358,13 @@ class TelecomBlacklistGenerator:
             'confidence': 'Low',
             'fuzzy_match': None,
             'key_based': False,
-            'value_based': False
+            'value_based': False,
+            'contextual_validation': None
         }
         
         # KEY-BASED ANALYSIS - Apply ONLY to final key
         key_categories = self.intelligent_keyword_match(field_path)
         if key_categories:
-            analysis_result['blacklisted'] = True
             analysis_result['key_based'] = True
             analysis_result['categories_detected'].extend(key_categories)
             
@@ -263,7 +382,6 @@ class TelecomBlacklistGenerator:
             analysis_result['unique_values'] = value_analysis['unique_values']
             
             if value_analysis['categories']:
-                analysis_result['blacklisted'] = True
                 analysis_result['value_based'] = True
                 analysis_result['categories_detected'].extend(value_analysis['categories'])
                 analysis_result['reasons'].append(f"Value-based: Values match sensitive patterns {value_analysis['patterns_found']} → {', '.join(value_analysis['categories'])}")
@@ -272,10 +390,36 @@ class TelecomBlacklistGenerator:
         # Remove duplicates from categories
         analysis_result['categories_detected'] = list(set(analysis_result['categories_detected']))
         
-        if not analysis_result['blacklisted']:
+        # CONTEXTUAL VALIDATION - Check if field name and values are consistent
+        if analysis_result['categories_detected']:
+            validation = self.contextual_validation(field_path, values, analysis_result['categories_detected'])
+            analysis_result['contextual_validation'] = validation
+            
+            # Adjust confidence based on validation
+            if not validation['is_valid']:
+                analysis_result['confidence'] = 'Low'
+                analysis_result['reasons'].append(f"Validation failed: {'; '.join(validation['failed_validations'])}")
+                # Don't blacklist if validation fails
+                analysis_result['blacklisted'] = False
+            elif validation['confidence_adjustment'] == 'decrease':
+                analysis_result['confidence'] = 'Low'
+                analysis_result['reasons'].append(f"Confidence decreased: {'; '.join(validation['passed_validations'])}")
+                # Don't blacklist boolean fields even if they match keywords
+                analysis_result['blacklisted'] = False
+            elif validation['confidence_adjustment'] == 'increase':
+                analysis_result['confidence'] = 'High'
+                analysis_result['reasons'].append(f"Validation passed: {'; '.join(validation['passed_validations'])}")
+                analysis_result['blacklisted'] = True
+            else:
+                # Standard logic applies
+                analysis_result['blacklisted'] = True if analysis_result['categories_detected'] else False
+        else:
+            analysis_result['blacklisted'] = False
+        
+        if not analysis_result['blacklisted'] and not analysis_result['reasons']:
             analysis_result['reasons'].append("No sensitive patterns detected")
         
-        # Add to appropriate blacklist
+        # Add to appropriate blacklist only if validated
         if analysis_result['blacklisted']:
             if category in ['request', 'response']:
                 self.payload_blacklist.add(final_key)
@@ -520,12 +664,16 @@ class TelecomBlacklistGenerator:
         </div>
 
         <div class="fix-notice">
-            <h3>🛠️ Fixes Applied:</h3>
+            <h3>🛠️ Enhanced Contextual Validation:</h3>
             <ul>
-                <li><strong>Key-based matching:</strong> Now applies ONLY to final key (e.g., 'verified' from 'response.contactMedium.Characteristic.verified')</li>
-                <li><strong>Value-based matching:</strong> Excludes boolean values (True/False) and common non-sensitive values</li>
-                <li><strong>Removed problematic patterns:</strong> name_pattern removed to prevent false positives on boolean values</li>
-                <li><strong>Enhanced exclusions:</strong> Added 'verified', 'preferred', 'enabled', etc. to exclusion list</li>
+                <li><strong>Email fields:</strong> Must contain actual email patterns to be flagged</li>
+                <li><strong>Phone fields:</strong> Must contain actual phone numbers to be flagged</li>
+                <li><strong>Boolean fields:</strong> Automatically safe if containing true/false values</li>
+                <li><strong>Balance/Amount fields:</strong> Must contain actual currency patterns to be flagged</li>
+                <li><strong>Date fields:</strong> Must contain actual dates to be flagged</li>
+                <li><strong>Credit card fields:</strong> Must contain valid card patterns to be flagged</li>
+                <li><strong>Location fields:</strong> Must contain coordinates to be flagged</li>
+                <li><strong>IP fields:</strong> Must contain IP addresses to be flagged</li>
             </ul>
         </div>
 
@@ -592,13 +740,26 @@ class TelecomBlacklistGenerator:
                 if result.get('value_based'):
                     blacklisted_field += '<span class="value-based-indicator">VALUE</span>'
                 
+                # Add validation indicator
+                validation = result.get('contextual_validation')
+                if validation:
+                    if validation['is_valid'] and validation['confidence_adjustment'] == 'increase':
+                        blacklisted_field += '<span style="background: #28a745; color: white; padding: 2px 6px; border-radius: 12px; font-size: 0.7em; margin-left: 4px;">VALIDATED</span>'
+                
                 # Add category tags
                 if result['categories_detected']:
                     category_tags = ''.join([f'<span class="category-tag {cat.lower()}">{cat}</span>' 
                                            for cat in result['categories_detected']])
                     blacklisted_field += f'<br><div style="margin-top: 5px;">{category_tags}</div>'
             else:
-                blacklisted_field = '<span style="color: #28a745; font-weight: bold;">✓ SAFE</span>'
+                # Check why it's safe
+                validation = result.get('contextual_validation')
+                if validation and not validation['is_valid']:
+                    blacklisted_field = '<span style="color: #28a745; font-weight: bold;">✓ SAFE</span><br><small style="color: #6c757d;">Failed validation</small>'
+                elif validation and validation['confidence_adjustment'] == 'decrease':
+                    blacklisted_field = '<span style="color: #28a745; font-weight: bold;">✓ SAFE</span><br><small style="color: #6c757d;">Boolean field</small>'
+                else:
+                    blacklisted_field = '<span style="color: #28a745; font-weight: bold;">✓ SAFE</span>'
             
             # Original field & values column
             original_field = f'<div class="field-path">{result["field_path"]}</div>'
