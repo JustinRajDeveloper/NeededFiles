@@ -72,7 +72,6 @@
     "imei": "^\\d{15}$",
     "cvv": "^\\d{3,4}$",
     "ip": "^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$",
-    "name_pattern": "^[A-Z][a-z]+ [A-Z][a-z]+$|^[A-Z][a-z]{2,}$",
     "long_numeric_id": "^\\d{6,20}$",
     "alphanumeric_id": "^[A-Z0-9]{6,20}$"
   },
@@ -105,7 +104,8 @@
     "count", "total", "success", "error", "message", "description",
     "content-type", "user-agent", "accept", "host", "connection", "cache-control",
     "length", "max", "min", "uuid", "guid", "hash", "checksum", "signature",
-    "result", "response", "request"
+    "result", "response", "request", "verified", "preferred", "enabled", "disabled",
+    "active", "inactive", "valid", "invalid"
   ],
   "pattern_mappings": {
     "email": ["SPI"],
@@ -120,8 +120,12 @@
     "imei": ["CPNI"],
     "cvv": ["PCI"],
     "ip": ["CSO"],
-    "name_pattern": ["SPI"],
     "long_numeric_id": ["CONTEXTUAL"],
     "alphanumeric_id": ["CONTEXTUAL"]
-  }
+  },
+  "value_exclusions": [
+    "true", "false", "null", "undefined", "yes", "no", "on", "off", 
+    "enabled", "disabled", "active", "inactive", "valid", "invalid",
+    "success", "failure", "ok", "error", "pending", "completed"
+  ]
 }
