@@ -15,6 +15,16 @@ from collections import defaultdict
 class TelecomBlacklistGenerator:
     def __init__(self, patterns_file: str = 'patterns_config.json'):
         self.patterns_file = patterns_file
+        
+        # Initialize all attributes with defaults
+        self.keywords = {}
+        self.value_patterns = {}
+        self.fuzzy_rules = {}
+        self.exclusions = set()
+        self.pattern_mappings = {}
+        self.value_exclusions = set()
+        
+        # Load patterns from file
         self.load_patterns()
         
         # Consolidated blacklists
@@ -200,9 +210,79 @@ class TelecomBlacklistGenerator:
         if category == 'unknown':
             return
         
-        # Check exclusions first
+    def analyze_field(self, field_path: str, values: List[Any]):
+        """Analyze a single field with improved logic to reduce false positives"""
+        final_key = self.extract_final_key(field_path)
+        category = self.get_field_category(field_path)
+        
+        if category == 'unknown':
+            return
+        
+        # Check exclusions first (both final key and field exclusions)
         if self.should_exclude(final_key):
             self.excluded_fields.append({
+                'field_path': field_path,
+                'final_key': final_key,
+                'reason': 'Excluded - Common non-sensitive field'
+            })
+            return
+        
+        # Initialize analysis result
+        analysis_result = {
+            'field_path': field_path,
+            'final_key': final_key,
+            'category': category,
+            'blacklisted': False,
+            'reasons': [],
+            'categories_detected': [],
+            'unique_values': [],
+            'confidence': 'Low',
+            'fuzzy_match': None,
+            'key_based': False,
+            'value_based': False
+        }
+        
+        # KEY-BASED ANALYSIS - Apply ONLY to final key
+        key_categories = self.intelligent_keyword_match(field_path)
+        if key_categories:
+            analysis_result['blacklisted'] = True
+            analysis_result['key_based'] = True
+            analysis_result['categories_detected'].extend(key_categories)
+            
+            # Check if fuzzy matching was applied
+            normalized_key = self.apply_fuzzy_matching(final_key.lower())
+            if normalized_key != final_key.lower():
+                analysis_result['fuzzy_match'] = normalized_key
+                analysis_result['reasons'].append(f"Key-based: '{final_key}' intelligently matched to '{normalized_key}' → {', '.join(key_categories)}")
+            else:
+                analysis_result['reasons'].append(f"Key-based: '{final_key}' contains sensitive keywords → {', '.join(key_categories)}")
+        
+        # VALUE-BASED ANALYSIS - Apply ONLY to actual values (with exclusions)
+        if values:
+            value_analysis = self.analyze_values(values)
+            analysis_result['unique_values'] = value_analysis['unique_values']
+            
+            if value_analysis['categories']:
+                analysis_result['blacklisted'] = True
+                analysis_result['value_based'] = True
+                analysis_result['categories_detected'].extend(value_analysis['categories'])
+                analysis_result['reasons'].append(f"Value-based: Values match sensitive patterns {value_analysis['patterns_found']} → {', '.join(value_analysis['categories'])}")
+                analysis_result['confidence'] = value_analysis['confidence']
+        
+        # Remove duplicates from categories
+        analysis_result['categories_detected'] = list(set(analysis_result['categories_detected']))
+        
+        if not analysis_result['blacklisted']:
+            analysis_result['reasons'].append("No sensitive patterns detected")
+        
+        # Add to appropriate blacklist
+        if analysis_result['blacklisted']:
+            if category in ['request', 'response']:
+                self.payload_blacklist.add(final_key)
+            elif category == 'headers':
+                self.headers_blacklist.add(final_key)
+        
+        self.detailed_analysis.append(analysis_result)
     def generate_detailed_table_html(self, output_file: str = 'blacklist_detailed_table.html'):
         """Generate detailed HTML table for developer review with improved clarity"""
         
@@ -587,11 +667,25 @@ headers.blacklist={','.join(sorted(self.headers_blacklist))}
             f.write(html_content)
         
         print(f"📄 Fixed detailed table generated: {output_file}")
-        return output_filepath': field_path,
-                'final_key': final_key,
-                'reason': 'Excluded - Common non-sensitive field'
-            })
-            return
+        return output_file
+    
+    def analyze_data(self, data_file: str):
+        """Analyze the extracted data"""
+        with open(data_file, 'r') as f:
+            data = json.load(f)
+        
+        # Analyze each field in the data
+        for item in data.get('data', []):
+            for field_path, values in item.items():
+                if field_path == 'curl':  # Skip curl commands
+                    continue
+                self.analyze_field(field_path, values)
+        
+        return {
+            'total_fields': len(self.detailed_analysis),
+            'blacklisted_fields': len([r for r in self.detailed_analysis if r['blacklisted']]),
+            'excluded_fields': len(self.excluded_fields)
+        }
         
         # Initialize analysis result
         analysis_result = {
