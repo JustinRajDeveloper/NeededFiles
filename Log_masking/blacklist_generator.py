@@ -230,104 +230,165 @@ class TelecomBlacklistGenerator:
         # Get sample values for validation
         sample_values = [str(v).strip() for v in values[:3]]
         
-        # Define field type to pattern mappings for validation
-        field_validations = {
-            # Email fields should contain email patterns
+        # Define specific field validations that require exact matches
+        strict_validations = {
+            # Email fields MUST contain email patterns
             'email': ['email'],
-            'mail': ['email'],
-            'eml': ['email'],
+            'emailaddr': ['email'],
+            'emailaddress': ['email'],
             
-            # Phone fields should contain phone patterns  
-            'phone': ['phone'],
-            'tel': ['phone'],
-            'mobile': ['phone'],
-            'cell': ['phone'],
+            # Phone fields MUST contain phone patterns  
+            'phonenumber': ['phone'],
+            'telephone': ['phone'],
             'msisdn': ['phone'],
             
-            # Date/Birth fields should contain date patterns
+            # Specific date fields that MUST contain dates (only sensitive dates)
             'dob': ['date_standard', 'date_text', 'date_compact'],
-            'birth': ['date_standard', 'date_text', 'date_compact'],
-            'date': ['date_standard', 'date_text', 'date_compact'],
+            'dateofbirth': ['date_standard', 'date_text', 'date_compact'],
+            'birthdate': ['date_standard', 'date_text', 'date_compact'],
+            'birthday': ['date_standard', 'date_text', 'date_compact'],
             
-            # SSN fields should contain SSN patterns
+            # SSN fields MUST contain SSN patterns
             'ssn': ['ssn'],
-            'social': ['ssn'],
+            'socialsecurity': ['ssn'],
             
-            # Credit card fields should contain card patterns
-            'card': ['credit_card'],
-            'creditcard': ['credit_card'],
+            # Credit card fields MUST contain card patterns
             'cardnumber': ['credit_card'],
-            'cardno': ['credit_card'],
+            'creditcard': ['credit_card'],
+            'debitcard': ['credit_card'],
             
-            # CVV fields should contain CVV patterns
+            # CVV fields MUST contain CVV patterns
             'cvv': ['cvv'],
             'cvc': ['cvv'],
             'securitycode': ['cvv'],
             
-            # Boolean-type fields should contain boolean values
+            # Specific balance/amount fields that MUST contain currency
+            'paymentamount': ['currency_with_symbol', 'currency_formatted', 'currency_large_amount'],
+            'billingamount': ['currency_with_symbol', 'currency_formatted', 'currency_large_amount'],
+            'dueamount': ['currency_with_symbol', 'currency_formatted', 'currency_large_amount'],
+            'totalamount': ['currency_with_symbol', 'currency_formatted', 'currency_large_amount'],
+            
+            # Location coordinates MUST contain coordinate patterns
+            'latitude': ['coordinates'],
+            'longitude': ['coordinates'],
+            'coordinates': ['coordinates'],
+            
+            # IP fields MUST contain IP patterns
+            'ipaddress': ['ip'],
+            
+            # IMEI fields MUST contain IMEI patterns
+            'imei': ['imei']
+        }
+        
+        # Boolean/Setting fields that should be safe if they contain boolean/setting values
+        setting_validations = {
+            'autopay': ['boolean', 'setting'],
+            'autodebit': ['boolean', 'setting'],
+            'paperless': ['boolean', 'setting'],
             'verified': ['boolean'],
             'enabled': ['boolean'],
             'active': ['boolean'],
             'valid': ['boolean'],
             'preferred': ['boolean'],
-            
-            # Balance/Amount fields should contain currency patterns
-            'balance': ['currency_with_symbol', 'currency_formatted', 'currency_large_amount'],
-            'amount': ['currency_with_symbol', 'currency_formatted', 'currency_large_amount'],
-            'price': ['currency_with_symbol', 'currency_formatted', 'currency_large_amount'],
-            'cost': ['currency_with_symbol', 'currency_formatted', 'currency_large_amount'],
-            
-            # Location fields should contain coordinate patterns
-            'latitude': ['coordinates'],
-            'longitude': ['coordinates'],
-            'lat': ['coordinates'],
-            'lng': ['coordinates'],
-            'coord': ['coordinates'],
-            
-            # IP fields should contain IP patterns
-            'ip': ['ip'],
-            'ipaddress': ['ip'],
-            
-            # IMEI fields should contain IMEI patterns
-            'imei': ['imei'],
-            'deviceid': ['imei']
+            'billcycle': ['setting'],
+            'billlanguage': ['setting'],
+            'language': ['setting'],
+            'locale': ['setting'],
+            'timezone': ['setting'],
+            'tenuretype': ['setting']
         }
         
-        # Check if field requires validation
+        # Check strict validations first
         validation_patterns = []
-        for field_type, patterns in field_validations.items():
+        validation_type = 'none'
+        
+        for field_type, patterns in strict_validations.items():
             if field_type in final_key:
                 validation_patterns.extend(patterns)
+                validation_type = 'strict'
+                break
+        
+        # Check setting validations
+        if not validation_patterns:
+            for field_type, patterns in setting_validations.items():
+                if field_type in final_key:
+                    validation_patterns.extend(patterns)
+                    validation_type = 'setting'
+                    break
         
         if not validation_patterns:
             return validation_result  # No validation required
         
-        # Perform validation
-        for pattern_name in validation_patterns:
-            if pattern_name == 'boolean':
-                # Special handling for boolean validation
-                valid_booleans = {'true', 'false', '1', '0', 'yes', 'no', 'on', 'off', 'enabled', 'disabled'}
-                values_valid = all(str(v).lower().strip() in valid_booleans for v in sample_values)
+        # Perform validation based on type
+        if validation_type == 'setting':
+            # For setting fields, if they contain setting/boolean values, they should be safe
+            valid_settings = {'true', 'false', '1', '0', 'yes', 'no', 'on', 'off', 
+                            'enabled', 'disabled', 'en', 'es', 'fr', 'de', 'it', 'pt',
+                            'monthly', 'quarterly', 'annual', 'weekly', 'daily',
+                            'utc', 'est', 'pst', 'cst', 'mst'}
+            
+            values_are_settings = all(str(v).lower().strip() in valid_settings or len(str(v).strip()) <= 3 
+                                    for v in sample_values)
+            
+            if values_are_settings:
+                validation_result['passed_validations'].append(f"Setting field contains non-sensitive values: {sample_values}")
+                validation_result['confidence_adjustment'] = 'decrease'
+                validation_result['is_valid'] = False  # Don't blacklist setting fields
+            else:
+                validation_result['failed_validations'].append(f"Setting field contains unexpected values: {sample_values}")
                 
-                if values_valid:
-                    validation_result['passed_validations'].append(f"Boolean field contains valid boolean values: {sample_values}")
-                    validation_result['confidence_adjustment'] = 'decrease'  # Boolean fields are usually not sensitive
-                else:
-                    validation_result['failed_validations'].append(f"Boolean field contains non-boolean values: {sample_values}")
+        elif validation_type == 'strict':
+            # For strict fields, values MUST match the expected patterns
+            for pattern_name in validation_patterns:
+                if pattern_name == 'boolean':
+                    valid_booleans = {'true', 'false', '1', '0', 'yes', 'no', 'on', 'off', 'enabled', 'disabled'}
+                    values_valid = all(str(v).lower().strip() in valid_booleans for v in sample_values)
                     
-            elif pattern_name in self.compiled_patterns:
-                # Check if values match the expected pattern
-                pattern = self.compiled_patterns[pattern_name]
-                matching_values = [v for v in sample_values if pattern.match(v)]
-                
-                if matching_values:
-                    validation_result['passed_validations'].append(f"Field matches expected {pattern_name} pattern: {matching_values}")
-                    validation_result['confidence_adjustment'] = 'increase'  # Values match expectations
-                else:
-                    validation_result['failed_validations'].append(f"Field suggests {pattern_name} but values don't match: {sample_values}")
-                    validation_result['is_valid'] = False
+                    if values_valid:
+                        validation_result['passed_validations'].append(f"Boolean field contains valid boolean values: {sample_values}")
+                        validation_result['confidence_adjustment'] = 'decrease'
+                        validation_result['is_valid'] = False  # Don't blacklist boolean fields
+                    else:
+                        validation_result['failed_validations'].append(f"Boolean field contains non-boolean values: {sample_values}")
+                        
+                elif pattern_name in self.compiled_patterns:
+                    # Check if values match the expected pattern
+                    pattern = self.compiled_patterns[pattern_name]
+                    matching_values = [v for v in sample_values if pattern.match(v)]
+                    
+                    if matching_values:
+                        validation_result['passed_validations'].append(f"Field matches expected {pattern_name} pattern: {matching_values}")
+                        validation_result['confidence_adjustment'] = 'increase'
+                    else:
+                        validation_result['failed_validations'].append(f"Field suggests {pattern_name} but values don't match: {sample_values}")
+                        validation_result['is_valid'] = False
         
         return validation_result
+    
+    def is_boolean_field(self, values: List[Any]) -> bool:
+        """Check if field contains only boolean-type values"""
+        if not values:
+            return False
+        
+        # Define all possible boolean values
+        boolean_values = {
+            'true', 'false', 
+            'yes', 'no', 
+            'y', 'n',
+            '1', '0',
+            'on', 'off',
+            'enabled', 'disabled',
+            'active', 'inactive',
+            'valid', 'invalid'
+        }
+        
+        # Check if ALL values are boolean-type
+        for value in values:
+            value_str = str(value).strip().lower()
+            if value_str not in boolean_values:
+                return False
+        
+        return True
     
     def analyze_field(self, field_path: str, values: List[Any]):
         """Analyze a single field with improved logic and contextual validation"""
@@ -343,6 +404,15 @@ class TelecomBlacklistGenerator:
                 'field_path': field_path,
                 'final_key': final_key,
                 'reason': 'Excluded - Common non-sensitive field'
+            })
+            return
+        
+        # EARLY BOOLEAN CHECK - If field contains only boolean values, mark as safe immediately
+        if self.is_boolean_field(values):
+            self.excluded_fields.append({
+                'field_path': field_path,
+                'final_key': final_key,
+                'reason': 'Excluded - Boolean field (True/False/Y/N/1/0 values)'
             })
             return
         
