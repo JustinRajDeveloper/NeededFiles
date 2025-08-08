@@ -1,0 +1,249 @@
+{
+  "summary": {
+    "total_requests": 3,
+    "successful_requests": 3,
+    "failed_requests": 0,
+    "success_rate": "100.0%",
+    "generated_at": "2024-08-07T10:30:00Z",
+    "collection_name": "Telecom API Test Collection"
+  },
+  "data": [
+    {
+      "curl": "curl -X GET https://api.telecom.com/customer/12345 -H 'Authorization: Bearer token123'",
+      
+      "headers.authorization": ["Bearer token123"],
+      "headers.content-type": ["application/json"],
+      "headers.user-agent": ["PostmanRuntime/7.32.3"],
+      
+      "request.query.customerId": ["12345"],
+      "request.query.includeDetails": ["true"],
+      "request.path.version": ["v1"],
+      
+      "response.customer.firstName": ["John", "Jane", "Michael"],
+      "response.customer.lastName": ["Doe", "Smith", "Johnson"],
+      "response.customer.fullName": ["John Doe", "Jane Smith", "Michael Johnson"],
+      "response.customer.email": ["john.doe@email.com", "jane.smith@gmail.com", "michael.j@yahoo.com"],
+      "response.customer.phone": ["+1-555-123-4567", "(555) 234-5678", "+14155552345"],
+      "response.customer.mobile": ["+1-555-987-6543", "(555) 876-5432"],
+      
+      "response.customer.address.street": ["123 Main St", "456 Oak Ave", "789 Pine Rd"],
+      "response.customer.address.city": ["New York", "Los Angeles", "Chicago"],
+      "response.customer.address.state": ["NY", "CA", "IL"],
+      "response.customer.address.zipCode": ["10001", "90210", "60601"],
+      "response.customer.address.country": ["USA", "US", "United States"],
+      
+      "response.customer.dateOfBirth": ["1985-03-15", "1990-07-22", "1988-12-03"],
+      "response.customer.age": ["39", "34", "36"],
+      "response.customer.ssn": ["123-45-6789", "987-65-4321"],
+      
+      "response.account.accountNumber": ["ACC-12345678", "ACC-87654321"],
+      "response.account.balance": ["$125.50", "$89.99", "$234.75"],
+      "response.account.currency": ["USD", "USD", "USD"],
+      "response.account.status": ["ACTIVE", "SUSPENDED", "PENDING"],
+      
+      "response.subscription.planCode": ["PREMIUM_UNLIMITED", "BASIC_500MB", "FAMILY_SHARED"],
+      "response.subscription.planType": ["postpaid", "prepaid", "family"],
+      "response.subscription.serviceType": ["mobile", "broadband", "voice"],
+      "response.subscription.ratePlanCode": ["RP_PREMIUM_001", "RP_BASIC_002"],
+      "response.subscription.ratePlanEffectiveDate": ["2024-01-15T09:00:00Z", "2024-03-01T00:00:00Z"],
+      "response.subscription.planEffectiveDate": ["2024-01-15", "2024-03-01"],
+      "response.subscription.expiryDate": ["2025-01-15T23:59:59Z", "2024-12-31T23:59:59Z"],
+      
+      "response.services.voiceEnabled": ["true", "false", "true"],
+      "response.services.dataEnabled": ["true", "true", "false"],
+      "response.services.roamingEnabled": ["false", "true", "false"],
+      "response.services.internationalCalling": ["enabled", "disabled"],
+      "response.services.voicemailActive": ["yes", "no", "yes"],
+      
+      "response.device.imei": ["123456789012345", "987654321098765"],
+      "response.device.model": ["iPhone 14", "Samsung Galaxy S23", "Google Pixel 7"],
+      "response.device.manufacturer": ["Apple", "Samsung", "Google"],
+      "response.device.deviceType": ["smartphone", "tablet", "smartwatch"],
+      
+      "response.billing.billingCycle": ["monthly", "quarterly", "annual"],
+      "response.billing.billingDate": ["2024-08-01T00:00:00Z", "2024-08-15T00:00:00Z"],
+      "response.billing.nextBillingDate": ["2024-09-01", "2024-09-15"],
+      "response.billing.paperless": ["true", "false", "true"],
+      "response.billing.autopay": ["enabled", "disabled"],
+      "response.billing.paymentMethod": ["credit_card", "bank_transfer", "cash"],
+      "response.billing.paymentMethodType": ["visa", "mastercard", "amex"],
+      
+      "response.payment.cardNumber": ["4111111111111111", "5555555555554444"],
+      "response.payment.cardHolderName": ["John Doe", "Jane Smith"],
+      "response.payment.expiryDate": ["12/26", "08/25"],
+      "response.payment.cvv": ["123", "456", "789"],
+      "response.payment.lastPaymentDate": ["2024-07-15T14:30:00Z", "2024-07-20T10:15:00Z"],
+      "response.payment.lastPaymentAmount": ["$125.50", "$89.99"],
+      
+      "response.usage.dataUsed": ["2.5GB", "1.2GB", "4.8GB"],
+      "response.usage.voiceMinutes": ["450", "123", "789"],
+      "response.usage.smsCount": ["50", "25", "100"],
+      "response.usage.usagePeriod": ["2024-07-01 to 2024-07-31"],
+      "response.usage.lastUsageDate": ["2024-08-06T18:45:00Z"],
+      
+      "response.location.lastKnownLocation": ["40.7128,-74.0060", "34.0522,-118.2437"],
+      "response.location.coordinates": ["40.7128,-74.0060", "34.0522,-118.2437"],
+      "response.location.latitude": ["40.7128", "34.0522"],
+      "response.location.longitude": ["-74.0060", "-118.2437"],
+      "response.location.locationTimestamp": ["2024-08-07T09:30:00Z"],
+      
+      "response.system.recordId": ["550e8400-e29b-41d4-a716-446655440000", "6ba7b810-9dad-11d1-80b4-00c04fd430c8"],
+      "response.system.transactionId": ["TXN_12345678901234567890", "TXN_98765432109876543210"],
+      "response.system.sessionId": ["SES_ABCDEF1234567890", "SES_9876543210FEDCBA"],
+      "response.system.requestId": ["REQ-2024080700001", "REQ-2024080700002"],
+      "response.system.version": ["1.0", "2.1", "1.5"],
+      "response.system.apiVersion": ["v1", "v2"],
+      "response.system.timestamp": ["2024-08-07T10:30:15.123Z", "2024-08-07T10:30:16.456Z"],
+      "response.system.serverTime": ["1691389815123", "1691389816456"],
+      
+      "response.preferences.language": ["en", "es", "fr"],
+      "response.preferences.locale": ["en_US", "es_MX", "fr_CA"],
+      "response.preferences.timezone": ["America/New_York", "America/Los_Angeles"],
+      "response.preferences.notifications": ["email", "sms", "push"],
+      "response.preferences.communicationMethod": ["email", "phone", "mail"],
+      
+      "response.security.verified": ["true", "false"],
+      "response.security.twoFactorEnabled": ["yes", "no"],
+      "response.security.lastLoginDate": ["2024-08-06T14:22:00Z"],
+      "response.security.passwordLastChanged": ["2024-06-15T08:00:00Z"],
+      "response.security.securityQuestions": ["3", "2", "4"]
+    },
+    {
+      "curl": "curl -X POST https://api.telecom.com/billing/payment -H 'Content-Type: application/json' -d '{\"amount\": 125.50}'",
+      
+      "headers.content-type": ["application/json"],
+      "headers.authorization": ["Bearer xyz789"],
+      
+      "request.body.customerId": ["CUST_67890"],
+      "request.body.paymentAmount": ["125.50", "89.99", "234.75"],
+      "request.body.paymentMethod": ["credit_card"],
+      "request.body.cardNumber": ["4111111111111111"],
+      "request.body.cardType": ["visa", "mastercard"],
+      "request.body.cardholder": ["Jane Doe"],
+      "request.body.cvv": ["456"],
+      "request.body.expiryMonth": ["12"],
+      "request.body.expiryYear": ["2026"],
+      
+      "response.payment.transactionId": ["PAY_2024080700001"],
+      "response.payment.status": ["SUCCESS", "FAILED", "PENDING"],
+      "response.payment.confirmationCode": ["CONF_ABC123XYZ"],
+      "response.payment.processedDate": ["2024-08-07T10:35:00Z"],
+      "response.payment.processorResponse": ["APPROVED", "DECLINED"],
+      
+      "response.business.tenureType": ["MATURE", "NEW", "EXISTING"],
+      "response.business.customerTier": ["PREMIUM", "GOLD", "SILVER", "BRONZE"],
+      "response.business.accountType": ["INDIVIDUAL", "BUSINESS", "FAMILY"],
+      "response.business.marketSegment": ["CONSUMER", "ENTERPRISE", "SMB"],
+      "response.business.campaignCode": ["SUMMER2024", "NEWCUSTOMER", "RETENTION"],
+      
+      "response.metadata.processedBy": ["payment-service-v2"],
+      "response.metadata.processingTime": ["150ms", "200ms"],
+      "response.metadata.requestSize": ["1024", "2048"],
+      "response.metadata.responseFormat": ["json", "xml"],
+      "response.metadata.contentEncoding": ["gzip", "none"]
+    },
+    {
+      "curl": "curl -X GET https://api.telecom.com/usage/12345?period=monthly",
+      
+      "request.query.customerId": ["12345"],
+      "request.query.period": ["monthly", "weekly", "daily"],
+      "request.query.includeRoaming": ["false"],
+      "request.query.format": ["json"],
+      
+      "response.usage.subscriberId": ["SUB_98765432101234567890"],
+      "response.usage.phoneNumber": ["+1-555-123-4567", "+14155552345"],
+      "response.usage.msisdn": ["15551234567", "14155552345"],
+      
+      "response.usage.period.startDate": ["2024-07-01"],
+      "response.usage.period.endDate": ["2024-07-31"],
+      "response.usage.period.billingPeriod": ["July 2024"],
+      
+      "response.usage.voice.totalMinutes": ["450", "123", "789"],
+      "response.usage.voice.peakMinutes": ["200", "50", "300"],
+      "response.usage.voice.offPeakMinutes": ["250", "73", "489"],
+      "response.usage.voice.internationalMinutes": ["15", "0", "25"],
+      
+      "response.usage.data.totalBytes": ["2684354560", "1288490188", "5159780352"],
+      "response.usage.data.totalMB": ["2560", "1228", "4920"],
+      "response.usage.data.totalGB": ["2.5", "1.2", "4.8"],
+      "response.usage.data.roamingData": ["0", "512", "1024"],
+      
+      "response.usage.sms.totalSent": ["50", "25", "100"],
+      "response.usage.sms.totalReceived": ["45", "30", "95"],
+      "response.usage.sms.internationalSMS": ["5", "0", "10"],
+      
+      "response.charges.voiceCharges": ["$22.50", "$6.15", "$39.45"],
+      "response.charges.dataCharges": ["$15.00", "$8.50", "$25.75"],
+      "response.charges.smsCharges": ["$2.50", "$1.25", "$5.00"],
+      "response.charges.roamingCharges": ["$0.00", "$15.75", "$8.25"],
+      "response.charges.totalCharges": ["$40.00", "$31.65", "$78.45"],
+      
+      "response.network.cellTowers": ["TOWER_NYC_001", "TOWER_LA_045", "TOWER_CHI_123"],
+      "response.network.networkType": ["5G", "4G", "LTE"],
+      "response.network.carrierCode": ["310260", "310410"],
+      "response.network.mcc": ["310", "311"],
+      "response.network.mnc": ["260", "410"],
+      
+      "response.technical.ipAddresses": ["192.168.1.100", "10.0.0.25", "172.16.0.50"],
+      "response.technical.macAddress": ["aa:bb:cc:dd:ee:ff", "11:22:33:44:55:66"],
+      "response.technical.deviceFingerprint": ["FP_DEVICE_ABC123XYZ789"],
+      
+      "response.dates.createdDate": ["2024-01-15"],
+      "response.dates.activationDate": ["2024-01-15T09:00:00Z"],
+      "response.dates.lastModifiedDate": ["2024-08-06T15:30:00Z"],
+      "response.dates.expirationDate": ["2025-01-15"],
+      "response.dates.suspensionDate": ["2024-05-15T00:00:00Z"],
+      "response.dates.resumptionDate": ["2024-05-20T00:00:00Z"],
+      
+      "response.booleans.active": ["true", "false"],
+      "response.booleans.enabled": ["true", "false"],
+      "response.booleans.verified": ["yes", "no"],
+      "response.booleans.valid": ["1", "0"],
+      "response.booleans.preferred": ["on", "off"],
+      "response.booleans.suspended": ["false", "true"],
+      
+      "response.codes.statusCode": ["200", "201", "400", "500"],
+      "response.codes.errorCode": ["ERR_001", "ERR_INVALID_PARAM"],
+      "response.codes.responseCode": ["SUCCESS", "FAILURE"],
+      "response.codes.resultCode": ["OK", "ERROR"],
+      
+      "response.types.requestType": ["GET", "POST", "PUT"],
+      "response.types.responseType": ["JSON", "XML"],
+      "response.types.contentType": ["application/json", "text/xml"],
+      "response.types.mediaType": ["json", "xml", "csv"],
+      
+      "response.fuzzy.fnme": ["John", "Jane"],
+      "response.fuzzy.lstnm": ["Doe", "Smith"],
+      "response.fuzzy.phne": ["+1-555-999-8888"],
+      "response.fuzzy.eml": ["test@example.com"],
+      "response.fuzzy.addr": ["999 Test St"],
+      
+      "response.personal.firstName": ["Alice", "Bob"],
+      "response.personal.surname": ["Johnson", "Williams"],
+      "response.personal.birthDate": ["1992-06-10"],
+      "response.personal.personalEmail": ["alice@personal.com"],
+      "response.personal.homePhone": ["+1-555-777-9999"],
+      "response.personal.homeAddress": ["555 Home Ave"],
+      
+      "response.sensitive.socialSecurityNumber": ["555-66-7777"],
+      "response.sensitive.driversLicense": ["DL123456789"],
+      "response.sensitive.passport": ["P123456789"],
+      "response.sensitive.creditCardNumber": ["5555555555554444"],
+      "response.sensitive.bankAccount": ["1234567890"],
+      
+      "response.uuids.recordUUID": ["123e4567-e89b-12d3-a456-426614174000"],
+      "response.uuids.sessionUUID": ["{550e8400-e29b-41d4-a716-446655440000}"],
+      "response.uuids.transactionUUID": ["6ba7b810-9dad-11d1-80b4-00c04fd430c8"],
+      "response.uuids.compactUUID": ["123e4567e89b12d3a456426614174000"],
+      
+      "response.timestamps.serverTimestamp": ["1691389815123456"],
+      "response.timestamps.clientTimestamp": ["1691389815987654"],
+      "response.timestamps.processingTimestamp": ["2024-08-07T10:30:15.999Z"],
+      
+      "response.coordinates.gpsLocation": ["37.7749,-122.4194"],
+      "response.coordinates.lastLocation": ["40.7589,-73.9851"],
+      "response.coordinates.homeLocation": ["34.0522,-118.2437"]
+    }
+  ],
+  "failed_requests": []
+}

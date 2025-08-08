@@ -1,0 +1,1320 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Interactive Telecom API Blacklist Analysis</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 20px; 
+            line-height: 1.6; 
+            background-color: #f5f5f5;
+        }
+        .container { 
+            max-width: 1400px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            color: white; 
+            padding: 30px; 
+            border-radius: 8px; 
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .interactive-notice {
+            background: #e1f5fe; 
+            color: #01579b; 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin: 20px 0;
+            border-left: 4px solid #0288d1;
+        }
+        .stats { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 15px; 
+            margin: 20px 0;
+        }
+        .stat-card { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            text-align: center; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-left: 4px solid #007bff;
+        }
+        .stat-number { 
+            font-size: 2em; 
+            font-weight: bold; 
+            color: #007bff; 
+        }
+        .exclusions-section {
+            background: #f8f9fa; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin: 20px 0;
+            border-left: 4px solid #28a745;
+        }
+        .filter-controls { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin: 20px 0;
+            border: 1px solid #dee2e6;
+        }
+        .btn { 
+            background: #007bff; 
+            color: white; 
+            border: none; 
+            padding: 8px 16px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            margin: 2px;
+        }
+        .btn:hover { background: #0056b3; }
+        .btn.active { background: #28a745; }
+        .btn-remove { 
+            background: #dc3545; 
+            color: white; 
+            border: none; 
+            padding: 6px 12px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 0.8em;
+        }
+        .btn-remove:hover { background: #c82333; }
+        .btn-add { 
+            background: #28a745; 
+            color: white; 
+            border: none; 
+            padding: 6px 12px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 0.8em;
+        }
+        .btn-add:hover { background: #218838; }
+        .btn-disabled { 
+            background: #6c757d; 
+            cursor: not-allowed; 
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin: 0; 
+            background: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        th { 
+            background-color: #495057; 
+            color: white; 
+            padding: 15px 12px; 
+            text-align: left; 
+            font-weight: 600;
+            border-bottom: 2px solid #dee2e6;
+        }
+        td { 
+            padding: 12px; 
+            border-bottom: 1px solid #dee2e6; 
+            vertical-align: top;
+        }
+        tr:hover { 
+            background-color: #f8f9fa; 
+        }
+        .field-path { 
+            font-family: 'Courier New', monospace; 
+            background: #e9ecef; 
+            padding: 4px 8px; 
+            border-radius: 4px;
+            font-size: 0.9em;
+            word-break: break-word;
+        }
+        .final-key { 
+            font-weight: bold; 
+            color: #495057;
+            font-size: 1.1em;
+        }
+        .values { 
+            font-family: 'Courier New', monospace; 
+            background: #f8f9fa; 
+            padding: 8px; 
+            border-radius: 4px; 
+            max-height: 100px; 
+            overflow-y: auto;
+            font-size: 0.9em;
+            word-break: break-word;
+        }
+        .reason { 
+            line-height: 1.5;
+        }
+        .blacklisted { 
+            background-color: #fff5f5; 
+            border-left: 4px solid #f56565;
+        }
+        .not-blacklisted { 
+            background-color: #f0fff4; 
+            border-left: 4px solid #48bb78;
+        }
+        .fuzzy-indicator { 
+            background: #3182ce; 
+            color: white; 
+            padding: 2px 6px; 
+            border-radius: 12px; 
+            font-size: 0.7em; 
+            margin-left: 8px;
+        }
+        .key-based-indicator { 
+            background: #e53e3e; 
+            color: white; 
+            padding: 2px 6px; 
+            border-radius: 12px; 
+            font-size: 0.7em; 
+            margin-left: 4px;
+        }
+        .value-based-indicator { 
+            background: #3182ce; 
+            color: white; 
+            padding: 2px 6px; 
+            border-radius: 12px; 
+            font-size: 0.7em; 
+            margin-left: 4px;
+        }
+        .manual-indicator { 
+            background: #ff6b35; 
+            color: white; 
+            padding: 2px 6px; 
+            border-radius: 12px; 
+            font-size: 0.7em; 
+            margin-left: 4px;
+        }
+        .category-tag { 
+            background: #e2e8f0; 
+            color: #2d3748; 
+            padding: 2px 8px; 
+            border-radius: 12px; 
+            font-size: 0.8em; 
+            margin: 2px;
+            display: inline-block;
+        }
+        .spi { background: #fed7d7; color: #742a2a; }
+        .cpni { background: #feebc8; color: #744210; }
+        .rpi { background: #e9d8fd; color: #44337a; }
+        .cso { background: #bee3f8; color: #2a4365; }
+        .pci { background: #fed7d7; color: #742a2a; }
+        .config-section {
+            background: #f8f9fa; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin: 20px 0;
+        }
+        .config-output {
+            background: #2d3748; 
+            color: #e2e8f0; 
+            padding: 15px; 
+            border-radius: 4px; 
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+        }
+    </style>
+    <script>
+        // Store current blacklist state
+        let currentPayloadBlacklist = new Set(["requestSize", "imei", "mnc", "homeLocation", "fnme", "gpsLocation", "roamingData", "homePhone", "voiceMinutes", "mobile", "latitude", "driversLicense", "smsCount", "securityQuestions", "ipAddresses", "longitude", "city", "transactionId", "addr", "serverTimestamp", "cardholder", "creditCardNumber", "birthDate", "apiVersion", "billingPeriod", "firstName", "lstnm", "lastKnownLocation", "dataCharges", "dateOfBirth", "macAddress", "roamingCharges", "state", "customerId", "cardHolderName", "period", "eml", "internationalSMS", "customerTier", "paymentAmount", "totalMinutes", "cellTowers", "expiryMonth", "msisdn", "offPeakMinutes", "carrierCode", "manufacturer", "deviceFingerprint", "totalReceived", "bankAccount", "dataUsed", "socialSecurityNumber", "street", "surname", "peakMinutes", "lastName", "fullName", "accountNumber", "zipCode", "personalEmail", "ssn", "expiryYear", "age", "totalBytes", "lastLocation", "marketSegment", "voiceCharges", "mcc", "phone", "totalMB", "phne", "email", "cardNumber", "coordinates", "totalCharges", "phoneNumber", "totalSent", "passport", "requestId", "totalGB", "clientTimestamp", "balance", "cvv", "internationalMinutes", "smsCharges", "sessionId", "homeAddress", "billingCycle", "lastPaymentAmount", "processorResponse", "usagePeriod"]);
+        let currentHeadersBlacklist = new Set(["authorization"]);
+        
+        function filterTable(show) {
+            const blacklistedRows = document.querySelectorAll('.blacklisted');
+            const notBlacklistedRows = document.querySelectorAll('.not-blacklisted');
+            const buttons = document.querySelectorAll('.filter-btn');
+            
+            // Reset button states
+            buttons.forEach(btn => btn.classList.remove('active'));
+            
+            if (show === 'all') {
+                blacklistedRows.forEach(row => row.style.display = '');
+                notBlacklistedRows.forEach(row => row.style.display = '');
+                document.querySelector('[onclick="filterTable(\'all\')"]').classList.add('active');
+            } else if (show === 'blacklisted') {
+                blacklistedRows.forEach(row => row.style.display = '');
+                notBlacklistedRows.forEach(row => row.style.display = 'none');
+                document.querySelector('[onclick="filterTable(\'blacklisted\')"]').classList.add('active');
+            } else if (show === 'safe') {
+                blacklistedRows.forEach(row => row.style.display = 'none');
+                notBlacklistedRows.forEach(row => row.style.display = '');
+                document.querySelector('[onclick="filterTable(\'safe\')"]').classList.add('active');
+            }
+        }
+        
+        function addToBlacklist(fieldName, category, button) {
+            // Add to appropriate blacklist
+            if (category === 'headers') {
+                currentHeadersBlacklist.add(fieldName);
+            } else {
+                currentPayloadBlacklist.add(fieldName);
+            }
+            
+            // Update button and row
+            const row = button.closest('tr');
+            row.className = 'blacklisted';
+            
+            // Change button to remove
+            button.textContent = 'Remove';
+            button.className = 'btn-remove';
+            button.onclick = () => removeFromBlacklist(fieldName, category, button);
+            
+            // Update the first column to show it's blacklisted
+            const firstCell = row.cells[0];
+            firstCell.innerHTML = `<span class="final-key">${fieldName}</span><span class="manual-indicator">MANUAL</span>`;
+            
+            // Update configuration display
+            updateConfigDisplay();
+            
+            // Show notification
+            showNotification(`Added ${fieldName} to blacklist`, 'success');
+        }
+        
+        function removeFromBlacklist(fieldName, category, button) {
+            // Remove from appropriate blacklist
+            if (category === 'headers') {
+                currentHeadersBlacklist.delete(fieldName);
+            } else {
+                currentPayloadBlacklist.delete(fieldName);
+            }
+            
+            // Update button and row
+            const row = button.closest('tr');
+            row.className = 'not-blacklisted';
+            
+            // Change button to add
+            button.textContent = 'Add';
+            button.className = 'btn-add';
+            button.onclick = () => addToBlacklist(fieldName, category, button);
+            
+            // Update the first column to show it's safe
+            const firstCell = row.cells[0];
+            firstCell.innerHTML = '<span style="color: #28a745; font-weight: bold;">✓ SAFE</span>';
+            
+            // Update configuration display
+            updateConfigDisplay();
+            
+            // Show notification
+            showNotification(`Removed ${fieldName} from blacklist`, 'info');
+        }
+        
+        function updateConfigDisplay() {
+            const configOutput = document.getElementById('config-output');
+            const payloadList = Array.from(currentPayloadBlacklist).sort().join(',');
+            const headersList = Array.from(currentHeadersBlacklist).sort().join(',');
+            
+            configOutput.textContent = `payload.blacklist=${payloadList}
+headers.blacklist=${headersList}`;
+        }
+        
+        function showNotification(message, type) {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 12px 20px;
+                border-radius: 4px;
+                color: white;
+                font-weight: bold;
+                z-index: 1000;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+                background: ${type === 'success' ? '#28a745' : type === 'info' ? '#17a2b8' : '#dc3545'};
+            `;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            // Fade in
+            setTimeout(() => notification.style.opacity = '1', 10);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => document.body.removeChild(notification), 300);
+            }, 3000);
+        }
+        
+        function exportConfiguration() {
+            const payloadList = Array.from(currentPayloadBlacklist).sort().join(',');
+            const headersList = Array.from(currentHeadersBlacklist).sort().join(',');
+            
+            const config = `# Generated Configuration - ${new Date().toISOString()}
+payload.blacklist=${payloadList}
+headers.blacklist=${headersList}`;
+            
+            const blob = new Blob([config], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'application.properties';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showNotification('Configuration exported!', 'success');
+        }
+        
+        function saveDeveloperOverrides() {
+            // Load existing overrides from developer_overrides.json if it exists
+            // For now, we'll work with current session data, but provide instructions
+            
+            // Collect all manually added/removed fields
+            const manualBlacklist = [];
+            const manualWhitelist = [];
+            
+            // Get original blacklists from Python analysis
+            const originalPayload = new Set(["requestSize", "imei", "mnc", "homeLocation", "fnme", "gpsLocation", "roamingData", "homePhone", "voiceMinutes", "mobile", "latitude", "driversLicense", "smsCount", "securityQuestions", "ipAddresses", "longitude", "city", "transactionId", "addr", "serverTimestamp", "cardholder", "creditCardNumber", "birthDate", "apiVersion", "billingPeriod", "firstName", "lstnm", "lastKnownLocation", "dataCharges", "dateOfBirth", "macAddress", "roamingCharges", "state", "customerId", "cardHolderName", "period", "eml", "internationalSMS", "customerTier", "paymentAmount", "totalMinutes", "cellTowers", "expiryMonth", "msisdn", "offPeakMinutes", "carrierCode", "manufacturer", "deviceFingerprint", "totalReceived", "bankAccount", "dataUsed", "socialSecurityNumber", "street", "surname", "peakMinutes", "lastName", "fullName", "accountNumber", "zipCode", "personalEmail", "ssn", "expiryYear", "age", "totalBytes", "lastLocation", "marketSegment", "voiceCharges", "mcc", "phone", "totalMB", "phne", "email", "cardNumber", "coordinates", "totalCharges", "phoneNumber", "totalSent", "passport", "requestId", "totalGB", "clientTimestamp", "balance", "cvv", "internationalMinutes", "smsCharges", "sessionId", "homeAddress", "billingCycle", "lastPaymentAmount", "processorResponse", "usagePeriod"]);
+            const originalHeaders = new Set(["authorization"]);
+            
+            // Compare current vs original to find manual changes
+            for (const field of currentPayloadBlacklist) {
+                if (!originalPayload.has(field)) {
+                    manualBlacklist.push(field);
+                }
+            }
+            for (const field of currentHeadersBlacklist) {
+                if (!originalHeaders.has(field)) {
+                    manualBlacklist.push(field);
+                }
+            }
+            
+            // Find manually removed fields
+            for (const field of originalPayload) {
+                if (!currentPayloadBlacklist.has(field)) {
+                    manualWhitelist.push(field);
+                }
+            }
+            for (const field of originalHeaders) {
+                if (!currentHeadersBlacklist.has(field)) {
+                    manualWhitelist.push(field);
+                }
+            }
+            
+            // Load existing developer overrides from the analysis (if any)
+            const existingManualBlacklist = ["apiVersion", "authorization"];
+            const existingManualWhitelist = ["subscriberId"];
+            
+            // Merge with existing overrides (union)
+            const finalBlacklist = [...new Set([...existingManualBlacklist, ...manualBlacklist])].sort();
+            const finalWhitelist = [...new Set([...existingManualWhitelist, ...manualWhitelist])].sort();
+            
+            // Remove conflicts (whitelist takes precedence)
+            const cleanedBlacklist = finalBlacklist.filter(field => !finalWhitelist.includes(field));
+            
+            // Create enhanced override object with instructions
+            const overrides = {
+                "_README": {
+                    "description": "Developer Manual Overrides for Telecom API Blacklist Generator",
+                    "usage": [
+                        "1. Place this file as 'developer_overrides.json' in the same directory as your analysis script",
+                        "2. Re-run the blacklist analysis: python interactive_blacklist_generator.py data.json",
+                        "3. The tool will automatically apply these overrides during analysis",
+                        "4. Manual blacklist fields will always be included in the final blacklist",
+                        "5. Manual whitelist fields will always be excluded from the final blacklist",
+                        "6. You can edit this file manually to add/remove fields if needed"
+                    ],
+                    "generated": new Date().toISOString(),
+                    "version": "2.0"
+                },
+                "manual_blacklist": cleanedBlacklist,
+                "manual_whitelist": finalWhitelist,
+                "metadata": {
+                    "total_manual_additions": cleanedBlacklist.length,
+                    "total_manual_exclusions": finalWhitelist.length,
+                    "last_updated": new Date().toISOString(),
+                    "note": "Fields in manual_blacklist will always be blacklisted. Fields in manual_whitelist will never be blacklisted."
+                }
+            };
+            
+            // Download as JSON file
+            const blob = new Blob([JSON.stringify(overrides, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'developer_overrides.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showNotification('Developer overrides saved! Place file in project directory and re-run analysis.', 'success');
+        }
+        
+        // Initialize with all shown
+        window.onload = function() {
+            filterTable('all');
+            updateConfigDisplay();
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔒 Interactive Telecom API Blacklist Analysis</h1>
+            <h2>🎯 Click Add/Remove to customize your blacklist</h2>
+            <p>Generated: 2025-08-08 01:13:54</p>
+        </div>
+
+        <div class="interactive-notice">
+            <h3>🎯 Interactive Features:</h3>
+            <ul>
+                <li><strong>Add Button:</strong> Manually add safe fields to blacklist if they contain sensitive data in your context</li>
+                <li><strong>Remove Button:</strong> Remove automatically detected fields if they're not sensitive in your context</li>
+                <li><strong>Real-time Updates:</strong> Configuration updates immediately as you make changes</li>
+                <li><strong>Persistent Storage:</strong> Changes are saved to patterns_config.json for future runs</li>
+                <li><strong>Export Config:</strong> Download the final configuration for your application</li>
+            </ul>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number">104</div>
+                <div>Analyzed Fields</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">99</div>
+                <div>Auto-Blacklisted</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">94</div>
+                <div>Key-based</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">74</div>
+                <div>Value-based</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">83</div>
+                <div>Smartly Excluded</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">5</div>
+                <div>Fuzzy Detected</div>
+            </div>
+        </div>
+
+        <div class="exclusions-section">
+            <h3>📋 Smart Exclusions Applied (83 fields):</h3>
+            <div style="max-height: 200px; overflow-y: auto;"><p><strong>Excluded - Common non-sensitive field:</strong> content-type, user-agent, version, country, currency, status, paperless, autopay, version, timestamp <em>(+13 more)</em></p><p><strong>Excluded - Boolean field (True/False/Y/N values):</strong> includeDetails, voiceEnabled, dataEnabled, roamingEnabled, internationalCalling, voicemailActive, twoFactorEnabled, includeRoaming, suspended</p><p><strong>Excluded - Code/Type field (classification, not sensitive data):</strong> planCode, planType, serviceType, ratePlanCode, deviceType, paymentMethod, paymentMethodType, communicationMethod, paymentMethod, cardType <em>(+12 more)</em></p><p><strong>Excluded - Non-personal date field (business/system date):</strong> ratePlanEffectiveDate, planEffectiveDate, expiryDate, billingDate, nextBillingDate, expiryDate, lastLoginDate, processedDate, processingTime, startDate <em>(+7 more)</em></p><p><strong>Excluded - Contains timestamps/datetime (not DOB):</strong> lastPaymentDate, lastUsageDate, locationTimestamp, serverTime, passwordLastChanged, resumptionDate</p><p><strong>Excluded - UUID field (system-generated identifiers):</strong> recordId, recordUUID, sessionUUID, transactionUUID, compactUUID</p><p><strong>👨‍💻 Developer manually excluded this field (via developer_overrides):</strong> subscriberId</p>
+            </div>
+        </div>
+
+        <div class="filter-controls">
+            <strong>Filter View:</strong>
+            <button class="btn filter-btn" onclick="filterTable('all')">Show All</button>
+            <button class="btn filter-btn" onclick="filterTable('blacklisted')">Only Blacklisted</button>
+            <button class="btn filter-btn" onclick="filterTable('safe')">Only Safe Fields</button>
+            
+            <span style="margin-left: 20px;"><strong>Actions:</strong></span>
+            <button class="btn" onclick="exportConfiguration()">📥 Export Configuration</button>
+            <button class="btn" onclick="saveDeveloperOverrides()">💾 Save Overrides</button>
+        </div>
+
+        <div style="margin: 30px 0;">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 20%;">Field Status</th>
+                        <th style="width: 35%;">Original Field & Values</th>
+                        <th style="width: 35%;">Analysis & Reason</th>
+                        <th style="width: 10%;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">authorization</span><span class="manual-indicator">MANUAL</span></td>
+                        <td><div class="field-path">headers.authorization</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>Bearer token123</code></div></td>
+                        <td class="reason">👨‍💻 Developer manually added 'authorization' to blacklist (via developer_overrides)</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('authorization', 'headers', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">authorization</span><span class="manual-indicator">MANUAL</span></td>
+                        <td><div class="field-path">headers.authorization</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>Bearer xyz789</code></div></td>
+                        <td class="reason">👨‍💻 Developer manually added 'authorization' to blacklist (via developer_overrides)</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('authorization', 'headers', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">cardNumber</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag contextual">CONTEXTUAL</span><span class="category-tag cpni">CPNI</span><span class="category-tag pci">PCI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">request.body.cardNumber</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>4111111111111111</code></div></td>
+                        <td class="reason">Key-based: 'cardNumber' contains sensitive keywords → CPNI, PCI, RPI<br>Value-based: Values match sensitive patterns ['long_numeric_id', 'credit_card', 'alphanumeric_id', 'currency'] → CONTEXTUAL, PCI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('cardNumber', 'request', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">cardholder</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag pci">PCI</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">request.body.cardholder</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>Jane Doe</code></div></td>
+                        <td class="reason">Key-based: 'cardholder' contains sensitive keywords → PCI, RPI<br>Value-based: Values match sensitive patterns ['name_pattern'] → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('cardholder', 'request', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">customerId</span><span class="key-based-indicator">KEY</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">request.body.customerId</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>CUST_67890</code></div></td>
+                        <td class="reason">Key-based: 'customerId' contains sensitive keywords → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('customerId', 'request', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">cvv</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag pci">PCI</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">request.body.cvv</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>456</code></div></td>
+                        <td class="reason">Key-based: 'cvv' contains sensitive keywords → PCI<br>Value-based: Values match sensitive patterns ['phone', 'cvv', 'currency'] → PCI, SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('cvv', 'request', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">expiryMonth</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag pci">PCI</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">request.body.expiryMonth</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>12</code></div></td>
+                        <td class="reason">Key-based: 'expiryMonth' contains sensitive keywords → PCI<br>Value-based: Values match sensitive patterns ['phone', 'currency'] → SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('expiryMonth', 'request', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">expiryYear</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag pci">PCI</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">request.body.expiryYear</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>2026</code></div></td>
+                        <td class="reason">Key-based: 'expiryYear' contains sensitive keywords → PCI<br>Value-based: Values match sensitive patterns ['phone', 'cvv', 'currency'] → PCI, SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('expiryYear', 'request', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">paymentAmount</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">request.body.paymentAmount</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>125.50</code><br><code>89.99</code><br><code>234.75</code></div></td>
+                        <td class="reason">Key-based: 'paymentAmount' contains sensitive keywords → RPI<br>Value-based: Values match sensitive patterns ['currency'] → RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('paymentAmount', 'request', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">customerId</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">request.query.customerId</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>12345</code></div></td>
+                        <td class="reason">Key-based: 'customerId' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['phone', 'currency'] → SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('customerId', 'request', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">customerId</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">request.query.customerId</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>12345</code></div></td>
+                        <td class="reason">Key-based: 'customerId' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['phone', 'currency'] → SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('customerId', 'request', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">period</span><span class="key-based-indicator">KEY</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span></div></td>
+                        <td><div class="field-path">request.query.period</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>monthly</code><br><code>weekly</code><br><code>daily</code></div></td>
+                        <td class="reason">Key-based: 'period' contains sensitive keywords → CPNI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('period', 'request', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">accountNumber</span><span class="key-based-indicator">KEY</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span><span class="category-tag pci">PCI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.account.accountNumber</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>ACC-12345678</code><br><code>ACC-87654321</code></div></td>
+                        <td class="reason">Key-based: 'accountNumber' contains sensitive keywords → CPNI, PCI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('accountNumber', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">balance</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.account.balance</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>$125.50</code><br><code>$89.99</code><br><code>$234.75</code></div></td>
+                        <td class="reason">Key-based: 'balance' contains sensitive keywords → RPI<br>Value-based: Values match sensitive patterns ['currency'] → RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('balance', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">billingCycle</span><span class="key-based-indicator">KEY</span><br><div style="margin-top: 5px;"><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.billing.billingCycle</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>monthly</code><br><code>quarterly</code><br><code>annual</code></div></td>
+                        <td class="reason">Key-based: 'billingCycle' contains sensitive keywords → RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('billingCycle', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">customerTier</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag contextual">CONTEXTUAL</span><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.business.customerTier</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>PREMIUM</code><br><code>GOLD</code><br><code>SILVER</code><br><em>... and 1 more</em></div></td>
+                        <td class="reason">Key-based: 'customerTier' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['alphanumeric_id'] → CONTEXTUAL</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('customerTier', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">marketSegment</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag contextual">CONTEXTUAL</span></div></td>
+                        <td><div class="field-path">response.business.marketSegment</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>CONSUMER</code><br><code>ENTERPRISE</code><br><code>SMB</code></div></td>
+                        <td class="reason">Value-based: Values match sensitive patterns ['alphanumeric_id'] → CONTEXTUAL</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('marketSegment', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">dataCharges</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.charges.dataCharges</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>$15.00</code><br><code>$8.50</code><br><code>$25.75</code></div></td>
+                        <td class="reason">Key-based: 'dataCharges' contains sensitive keywords → CPNI, RPI<br>Value-based: Values match sensitive patterns ['currency'] → RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('dataCharges', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">roamingCharges</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.charges.roamingCharges</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>$0.00</code><br><code>$15.75</code><br><code>$8.25</code></div></td>
+                        <td class="reason">Key-based: 'roamingCharges' contains sensitive keywords → RPI<br>Value-based: Values match sensitive patterns ['currency'] → RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('roamingCharges', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">smsCharges</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.charges.smsCharges</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>$2.50</code><br><code>$1.25</code><br><code>$5.00</code></div></td>
+                        <td class="reason">Key-based: 'smsCharges' contains sensitive keywords → CPNI, RPI<br>Value-based: Values match sensitive patterns ['currency'] → RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('smsCharges', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">totalCharges</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.charges.totalCharges</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>$40.00</code><br><code>$31.65</code><br><code>$78.45</code></div></td>
+                        <td class="reason">Key-based: 'totalCharges' contains sensitive keywords → RPI<br>Value-based: Values match sensitive patterns ['currency'] → RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('totalCharges', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">voiceCharges</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.charges.voiceCharges</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>$22.50</code><br><code>$6.15</code><br><code>$39.45</code></div></td>
+                        <td class="reason">Key-based: 'voiceCharges' contains sensitive keywords → CPNI, RPI<br>Value-based: Values match sensitive patterns ['currency'] → RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('voiceCharges', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">gpsLocation</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.coordinates.gpsLocation</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>37.7749,-122.4194</code></div></td>
+                        <td class="reason">Key-based: 'gpsLocation' contains sensitive keywords → CPNI, SPI<br>Value-based: Values match sensitive patterns ['coordinates'] → CPNI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('gpsLocation', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">homeLocation</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.coordinates.homeLocation</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>34.0522,-118.2437</code></div></td>
+                        <td class="reason">Key-based: 'homeLocation' contains sensitive keywords → CPNI, SPI<br>Value-based: Values match sensitive patterns ['coordinates'] → CPNI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('homeLocation', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">lastLocation</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.coordinates.lastLocation</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>40.7589,-73.9851</code></div></td>
+                        <td class="reason">Key-based: 'lastLocation' contains sensitive keywords → CPNI, SPI<br>Value-based: Values match sensitive patterns ['coordinates'] → CPNI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('lastLocation', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">city</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.customer.address.city</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>New York</code><br><code>Los Angeles</code><br><code>Chicago</code></div></td>
+                        <td class="reason">Key-based: 'city' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['name_pattern'] → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('city', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">state</span><span class="key-based-indicator">KEY</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.customer.address.state</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>NY</code><br><code>CA</code><br><code>IL</code></div></td>
+                        <td class="reason">Key-based: 'state' contains sensitive keywords → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('state', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">street</span><span class="key-based-indicator">KEY</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.customer.address.street</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>123 Main St</code><br><code>456 Oak Ave</code><br><code>789 Pine Rd</code></div></td>
+                        <td class="reason">Key-based: 'street' contains sensitive keywords → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('street', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">zipCode</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.customer.address.zipCode</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>10001</code><br><code>90210</code><br><code>60601</code></div></td>
+                        <td class="reason">Key-based: 'zipCode' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['phone', 'currency'] → SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('zipCode', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">age</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.customer.age</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>39</code><br><code>34</code><br><code>36</code></div></td>
+                        <td class="reason">Key-based: 'age' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['phone', 'currency'] → SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('age', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">dateOfBirth</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.customer.dateOfBirth</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>1985-03-15</code><br><code>1990-07-22</code><br><code>1988-12-03</code></div></td>
+                        <td class="reason">Key-based: 'dateOfBirth' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['date_standard'] → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('dateOfBirth', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">email</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.customer.email</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>john.doe@email.com</code><br><code>jane.smith@gmail.com</code><br><code>michael.j@yahoo.com</code></div></td>
+                        <td class="reason">Key-based: 'email' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['email'] → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('email', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">firstName</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.customer.firstName</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>John</code><br><code>Jane</code><br><code>Michael</code></div></td>
+                        <td class="reason">Key-based: 'firstName' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['name_pattern'] → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('firstName', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">fullName</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.customer.fullName</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>John Doe</code><br><code>Jane Smith</code><br><code>Michael Johnson</code></div></td>
+                        <td class="reason">Key-based: 'fullName' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['name_pattern'] → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('fullName', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">lastName</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.customer.lastName</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>Doe</code><br><code>Smith</code><br><code>Johnson</code></div></td>
+                        <td class="reason">Key-based: 'lastName' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['name_pattern'] → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('lastName', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">mobile</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.customer.mobile</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>+1-555-987-6543</code><br><code>(555) 876-5432</code></div></td>
+                        <td class="reason">Key-based: 'mobile' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['phone'] → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('mobile', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">phone</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.customer.phone</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>+1-555-123-4567</code><br><code>(555) 234-5678</code><br><code>+14155552345</code></div></td>
+                        <td class="reason">Key-based: 'phone' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['phone'] → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('phone', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">ssn</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.customer.ssn</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>123-45-6789</code><br><code>987-65-4321</code></div></td>
+                        <td class="reason">Key-based: 'ssn' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['ssn'] → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('ssn', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">imei</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag contextual">CONTEXTUAL</span><span class="category-tag cpni">CPNI</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.device.imei</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>123456789012345</code><br><code>987654321098765</code></div></td>
+                        <td class="reason">Key-based: 'imei' contains sensitive keywords → CPNI<br>Value-based: Values match sensitive patterns ['imei', 'alphanumeric_id', 'currency', 'phone', 'long_numeric_id'] → CONTEXTUAL, CPNI, SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('imei', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">manufacturer</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.device.manufacturer</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>Apple</code><br><code>Samsung</code><br><code>Google</code></div></td>
+                        <td class="reason">Value-based: Values match sensitive patterns ['name_pattern'] → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('manufacturer', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="not-blacklisted">
+                        <td><span style="color: #28a745; font-weight: bold;">✓ SAFE</span></td>
+                        <td><div class="field-path">response.device.model</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>iPhone 14</code><br><code>Samsung Galaxy S23</code><br><code>Google Pixel 7</code></div></td>
+                        <td class="reason">No sensitive patterns detected</td>
+                        <td><button class="btn-add" onclick="addToBlacklist('model', 'response', this)">Add</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">addr</span><span class="fuzzy-indicator">FUZZY</span><span class="key-based-indicator">KEY</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.fuzzy.addr</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>999 Test St</code></div></td>
+                        <td class="reason">Key-based: 'addr' intelligently matched to 'address' → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('addr', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">eml</span><span class="fuzzy-indicator">FUZZY</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.fuzzy.eml</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>test@example.com</code></div></td>
+                        <td class="reason">Key-based: 'eml' intelligently matched to 'email' → SPI<br>Value-based: Values match sensitive patterns ['email'] → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('eml', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">fnme</span><span class="fuzzy-indicator">FUZZY</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.fuzzy.fnme</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>John</code><br><code>Jane</code></div></td>
+                        <td class="reason">Key-based: 'fnme' intelligently matched to 'firstname' → SPI<br>Value-based: Values match sensitive patterns ['name_pattern'] → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('fnme', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">lstnm</span><span class="fuzzy-indicator">FUZZY</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.fuzzy.lstnm</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>Doe</code><br><code>Smith</code></div></td>
+                        <td class="reason">Key-based: 'lstnm' intelligently matched to 'lastname' → SPI<br>Value-based: Values match sensitive patterns ['name_pattern'] → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('lstnm', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">phne</span><span class="fuzzy-indicator">FUZZY</span><span class="key-based-indicator">KEY</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.fuzzy.phne</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>+1-555-999-8888</code></div></td>
+                        <td class="reason">Key-based: 'phne' intelligently matched to 'phone' → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('phne', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">coordinates</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span></div></td>
+                        <td><div class="field-path">response.location.coordinates</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>40.7128,-74.0060</code><br><code>34.0522,-118.2437</code></div></td>
+                        <td class="reason">Key-based: 'coordinates' contains sensitive keywords → CPNI<br>Value-based: Values match sensitive patterns ['coordinates'] → CPNI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('coordinates', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">lastKnownLocation</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.location.lastKnownLocation</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>40.7128,-74.0060</code><br><code>34.0522,-118.2437</code></div></td>
+                        <td class="reason">Key-based: 'lastKnownLocation' contains sensitive keywords → CPNI, SPI<br>Value-based: Values match sensitive patterns ['coordinates'] → CPNI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('lastKnownLocation', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">latitude</span><span class="key-based-indicator">KEY</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span></div></td>
+                        <td><div class="field-path">response.location.latitude</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>40.7128</code><br><code>34.0522</code></div></td>
+                        <td class="reason">Key-based: 'latitude' contains sensitive keywords → CPNI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('latitude', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">longitude</span><span class="key-based-indicator">KEY</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span></div></td>
+                        <td><div class="field-path">response.location.longitude</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>-74.0060</code><br><code>-118.2437</code></div></td>
+                        <td class="reason">Key-based: 'longitude' contains sensitive keywords → CPNI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('longitude', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="not-blacklisted">
+                        <td><span style="color: #28a745; font-weight: bold;">✓ SAFE</span></td>
+                        <td><div class="field-path">response.metadata.contentEncoding</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>gzip</code><br><code>none</code></div></td>
+                        <td class="reason">No sensitive patterns detected</td>
+                        <td><button class="btn-add" onclick="addToBlacklist('contentEncoding', 'response', this)">Add</button></td>
+                    </tr>
+
+                    <tr class="not-blacklisted">
+                        <td><span style="color: #28a745; font-weight: bold;">✓ SAFE</span></td>
+                        <td><div class="field-path">response.metadata.processedBy</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>payment-service-v2</code></div></td>
+                        <td class="reason">No sensitive patterns detected</td>
+                        <td><button class="btn-add" onclick="addToBlacklist('processedBy', 'response', this)">Add</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">requestSize</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag pci">PCI</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.metadata.requestSize</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>1024</code><br><code>2048</code></div></td>
+                        <td class="reason">Key-based: 'requestSize' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['phone', 'cvv', 'currency'] → PCI, SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('requestSize', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">carrierCode</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag contextual">CONTEXTUAL</span><span class="category-tag cpni">CPNI</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.network.carrierCode</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>310260</code><br><code>310410</code></div></td>
+                        <td class="reason">Key-based: 'carrierCode' contains sensitive keywords → CPNI<br>Value-based: Values match sensitive patterns ['alphanumeric_id', 'currency', 'phone', 'date_compact', 'long_numeric_id'] → CONTEXTUAL, SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('carrierCode', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">cellTowers</span><span class="key-based-indicator">KEY</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.network.cellTowers</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>TOWER_NYC_001</code><br><code>TOWER_LA_045</code><br><code>TOWER_CHI_123</code></div></td>
+                        <td class="reason">Key-based: 'cellTowers' contains sensitive keywords → CPNI, SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('cellTowers', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">mcc</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span><span class="category-tag pci">PCI</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.network.mcc</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>310</code><br><code>311</code></div></td>
+                        <td class="reason">Key-based: 'mcc' contains sensitive keywords → CPNI, PCI, RPI<br>Value-based: Values match sensitive patterns ['phone', 'cvv', 'currency'] → PCI, SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('mcc', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">mnc</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span><span class="category-tag pci">PCI</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.network.mnc</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>260</code><br><code>410</code></div></td>
+                        <td class="reason">Key-based: 'mnc' contains sensitive keywords → CPNI<br>Value-based: Values match sensitive patterns ['phone', 'cvv', 'currency'] → PCI, SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('mnc', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">cardHolderName</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag pci">PCI</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.payment.cardHolderName</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>John Doe</code><br><code>Jane Smith</code></div></td>
+                        <td class="reason">Key-based: 'cardHolderName' contains sensitive keywords → PCI, SPI, RPI<br>Value-based: Values match sensitive patterns ['name_pattern'] → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('cardHolderName', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">cardNumber</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag contextual">CONTEXTUAL</span><span class="category-tag cpni">CPNI</span><span class="category-tag pci">PCI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.payment.cardNumber</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>4111111111111111</code><br><code>5555555555554444</code></div></td>
+                        <td class="reason">Key-based: 'cardNumber' contains sensitive keywords → CPNI, PCI, RPI<br>Value-based: Values match sensitive patterns ['long_numeric_id', 'credit_card', 'alphanumeric_id', 'currency'] → CONTEXTUAL, PCI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('cardNumber', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="not-blacklisted">
+                        <td><span style="color: #28a745; font-weight: bold;">✓ SAFE</span></td>
+                        <td><div class="field-path">response.payment.confirmationCode</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>CONF_ABC123XYZ</code></div></td>
+                        <td class="reason">No sensitive patterns detected</td>
+                        <td><button class="btn-add" onclick="addToBlacklist('confirmationCode', 'response', this)">Add</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">cvv</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag pci">PCI</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.payment.cvv</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>123</code><br><code>456</code><br><code>789</code></div></td>
+                        <td class="reason">Key-based: 'cvv' contains sensitive keywords → PCI<br>Value-based: Values match sensitive patterns ['phone', 'cvv', 'currency'] → PCI, SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('cvv', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">lastPaymentAmount</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.payment.lastPaymentAmount</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>$125.50</code><br><code>$89.99</code></div></td>
+                        <td class="reason">Key-based: 'lastPaymentAmount' contains sensitive keywords → SPI, RPI<br>Value-based: Values match sensitive patterns ['currency'] → RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('lastPaymentAmount', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">processorResponse</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag contextual">CONTEXTUAL</span></div></td>
+                        <td><div class="field-path">response.payment.processorResponse</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>APPROVED</code><br><code>DECLINED</code></div></td>
+                        <td class="reason">Value-based: Values match sensitive patterns ['alphanumeric_id'] → CONTEXTUAL</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('processorResponse', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">transactionId</span><span class="key-based-indicator">KEY</span><br><div style="margin-top: 5px;"><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.payment.transactionId</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>PAY_2024080700001</code></div></td>
+                        <td class="reason">Key-based: 'transactionId' contains sensitive keywords → RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('transactionId', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">birthDate</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.personal.birthDate</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>1992-06-10</code></div></td>
+                        <td class="reason">Key-based: 'birthDate' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['date_standard'] → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('birthDate', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">firstName</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.personal.firstName</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>Alice</code><br><code>Bob</code></div></td>
+                        <td class="reason">Key-based: 'firstName' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['name_pattern'] → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('firstName', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">homeAddress</span><span class="key-based-indicator">KEY</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.personal.homeAddress</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>555 Home Ave</code></div></td>
+                        <td class="reason">Key-based: 'homeAddress' contains sensitive keywords → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('homeAddress', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">homePhone</span><span class="key-based-indicator">KEY</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.personal.homePhone</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>+1-555-777-9999</code></div></td>
+                        <td class="reason">Key-based: 'homePhone' contains sensitive keywords → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('homePhone', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">personalEmail</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.personal.personalEmail</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>alice@personal.com</code></div></td>
+                        <td class="reason">Key-based: 'personalEmail' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['email'] → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('personalEmail', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">surname</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.personal.surname</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>Johnson</code><br><code>Williams</code></div></td>
+                        <td class="reason">Key-based: 'surname' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['name_pattern'] → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('surname', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="not-blacklisted">
+                        <td><span style="color: #28a745; font-weight: bold;">✓ SAFE</span></td>
+                        <td><div class="field-path">response.preferences.notifications</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>email</code><br><code>sms</code><br><code>push</code></div></td>
+                        <td class="reason">No sensitive patterns detected</td>
+                        <td><button class="btn-add" onclick="addToBlacklist('notifications', 'response', this)">Add</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">securityQuestions</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.security.securityQuestions</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>3</code><br><code>2</code><br><code>4</code></div></td>
+                        <td class="reason">Key-based: 'securityQuestions' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['currency'] → RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('securityQuestions', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">bankAccount</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag contextual">CONTEXTUAL</span><span class="category-tag pci">PCI</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.sensitive.bankAccount</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>1234567890</code></div></td>
+                        <td class="reason">Key-based: 'bankAccount' contains sensitive keywords → PCI, RPI<br>Value-based: Values match sensitive patterns ['phone', 'long_numeric_id', 'alphanumeric_id', 'currency'] → CONTEXTUAL, SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('bankAccount', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">creditCardNumber</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag contextual">CONTEXTUAL</span><span class="category-tag cpni">CPNI</span><span class="category-tag pci">PCI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.sensitive.creditCardNumber</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>5555555555554444</code></div></td>
+                        <td class="reason">Key-based: 'creditCardNumber' contains sensitive keywords → CPNI, PCI, RPI<br>Value-based: Values match sensitive patterns ['long_numeric_id', 'credit_card', 'alphanumeric_id', 'currency'] → CONTEXTUAL, PCI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('creditCardNumber', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">driversLicense</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag contextual">CONTEXTUAL</span><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.sensitive.driversLicense</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>DL123456789</code></div></td>
+                        <td class="reason">Key-based: 'driversLicense' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['alphanumeric_id'] → CONTEXTUAL</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('driversLicense', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">passport</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag contextual">CONTEXTUAL</span><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.sensitive.passport</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>P123456789</code></div></td>
+                        <td class="reason">Key-based: 'passport' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['alphanumeric_id'] → CONTEXTUAL</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('passport', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">socialSecurityNumber</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.sensitive.socialSecurityNumber</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>555-66-7777</code></div></td>
+                        <td class="reason">Key-based: 'socialSecurityNumber' contains sensitive keywords → CPNI, SPI<br>Value-based: Values match sensitive patterns ['ssn'] → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('socialSecurityNumber', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">apiVersion</span><span class="manual-indicator">MANUAL</span></td>
+                        <td><div class="field-path">response.system.apiVersion</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>v1</code><br><code>v2</code></div></td>
+                        <td class="reason">👨‍💻 Developer manually added 'apiVersion' to blacklist (via developer_overrides)</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('apiVersion', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">requestId</span><span class="key-based-indicator">KEY</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.system.requestId</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>REQ-2024080700001</code><br><code>REQ-2024080700002</code></div></td>
+                        <td class="reason">Key-based: 'requestId' contains sensitive keywords → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('requestId', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">sessionId</span><span class="key-based-indicator">KEY</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span></div></td>
+                        <td><div class="field-path">response.system.sessionId</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>SES_ABCDEF1234567890</code><br><code>SES_9876543210FEDCBA</code></div></td>
+                        <td class="reason">Key-based: 'sessionId' contains sensitive keywords → CPNI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('sessionId', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">transactionId</span><span class="key-based-indicator">KEY</span><br><div style="margin-top: 5px;"><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.system.transactionId</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>TXN_12345678901234567890</code><br><code>TXN_98765432109876543210</code></div></td>
+                        <td class="reason">Key-based: 'transactionId' contains sensitive keywords → RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('transactionId', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">deviceFingerprint</span><span class="key-based-indicator">KEY</span><br><div style="margin-top: 5px;"><span class="category-tag cso">CSO</span></div></td>
+                        <td><div class="field-path">response.technical.deviceFingerprint</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>FP_DEVICE_ABC123XYZ789</code></div></td>
+                        <td class="reason">Key-based: 'deviceFingerprint' contains sensitive keywords → CSO</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('deviceFingerprint', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">ipAddresses</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag cso">CSO</span><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.technical.ipAddresses</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>192.168.1.100</code><br><code>10.0.0.25</code><br><code>172.16.0.50</code></div></td>
+                        <td class="reason">Key-based: 'ipAddresses' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['ip'] → CSO</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('ipAddresses', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">macAddress</span><span class="key-based-indicator">KEY</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.technical.macAddress</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>aa:bb:cc:dd:ee:ff</code><br><code>11:22:33:44:55:66</code></div></td>
+                        <td class="reason">Key-based: 'macAddress' contains sensitive keywords → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('macAddress', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">clientTimestamp</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span><span class="category-tag pci">PCI</span><span class="category-tag rpi">RPI</span><span class="category-tag contextual">CONTEXTUAL</span><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.timestamps.clientTimestamp</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>1691389815987654</code></div></td>
+                        <td class="reason">Key-based: 'clientTimestamp' contains sensitive keywords → CPNI, SPI<br>Value-based: Values match sensitive patterns ['long_numeric_id', 'credit_card', 'alphanumeric_id', 'currency'] → CONTEXTUAL, PCI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('clientTimestamp', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">serverTimestamp</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span><span class="category-tag pci">PCI</span><span class="category-tag rpi">RPI</span><span class="category-tag contextual">CONTEXTUAL</span><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.timestamps.serverTimestamp</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>1691389815123456</code></div></td>
+                        <td class="reason">Key-based: 'serverTimestamp' contains sensitive keywords → CPNI, SPI<br>Value-based: Values match sensitive patterns ['long_numeric_id', 'credit_card', 'alphanumeric_id', 'currency'] → CONTEXTUAL, PCI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('serverTimestamp', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">roamingData</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span><span class="category-tag pci">PCI</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.usage.data.roamingData</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>0</code><br><code>512</code><br><code>1024</code></div></td>
+                        <td class="reason">Key-based: 'roamingData' contains sensitive keywords → CPNI<br>Value-based: Values match sensitive patterns ['phone', 'cvv', 'currency'] → PCI, SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('roamingData', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">totalBytes</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag contextual">CONTEXTUAL</span><span class="category-tag cpni">CPNI</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.usage.data.totalBytes</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>2684354560</code><br><code>1288490188</code><br><code>5159780352</code></div></td>
+                        <td class="reason">Key-based: 'totalBytes' contains sensitive keywords → CPNI, RPI<br>Value-based: Values match sensitive patterns ['phone', 'long_numeric_id', 'alphanumeric_id', 'currency'] → CONTEXTUAL, SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('totalBytes', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">totalGB</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.usage.data.totalGB</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>2.5</code><br><code>1.2</code><br><code>4.8</code></div></td>
+                        <td class="reason">Key-based: 'totalGB' contains sensitive keywords → CPNI, RPI<br>Value-based: Values match sensitive patterns ['currency'] → RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('totalGB', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">totalMB</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span><span class="category-tag pci">PCI</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.usage.data.totalMB</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>2560</code><br><code>1228</code><br><code>4920</code></div></td>
+                        <td class="reason">Key-based: 'totalMB' contains sensitive keywords → CPNI, RPI<br>Value-based: Values match sensitive patterns ['phone', 'cvv', 'currency'] → PCI, SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('totalMB', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">dataUsed</span><span class="key-based-indicator">KEY</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span></div></td>
+                        <td><div class="field-path">response.usage.dataUsed</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>2.5GB</code><br><code>1.2GB</code><br><code>4.8GB</code></div></td>
+                        <td class="reason">Key-based: 'dataUsed' contains sensitive keywords → CPNI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('dataUsed', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">msisdn</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag contextual">CONTEXTUAL</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.usage.msisdn</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>15551234567</code><br><code>14155552345</code></div></td>
+                        <td class="reason">Key-based: 'msisdn' contains sensitive keywords → SPI<br>Value-based: Values match sensitive patterns ['phone', 'long_numeric_id', 'alphanumeric_id', 'currency'] → CONTEXTUAL, SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('msisdn', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">billingPeriod</span><span class="key-based-indicator">KEY</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.usage.period.billingPeriod</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>July 2024</code></div></td>
+                        <td class="reason">Key-based: 'billingPeriod' contains sensitive keywords → CPNI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('billingPeriod', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">phoneNumber</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.usage.phoneNumber</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>+1-555-123-4567</code><br><code>+14155552345</code></div></td>
+                        <td class="reason">Key-based: 'phoneNumber' contains sensitive keywords → CPNI, SPI<br>Value-based: Values match sensitive patterns ['phone'] → SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('phoneNumber', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">internationalSMS</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag cso">CSO</span><span class="category-tag cpni">CPNI</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.usage.sms.internationalSMS</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>5</code><br><code>0</code><br><code>10</code></div></td>
+                        <td class="reason">Key-based: 'internationalSMS' contains sensitive keywords → CSO, CPNI<br>Value-based: Values match sensitive patterns ['phone', 'currency'] → SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('internationalSMS', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">totalReceived</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.usage.sms.totalReceived</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>45</code><br><code>30</code><br><code>95</code></div></td>
+                        <td class="reason">Key-based: 'totalReceived' contains sensitive keywords → RPI<br>Value-based: Values match sensitive patterns ['phone', 'currency'] → SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('totalReceived', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">totalSent</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag pci">PCI</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.usage.sms.totalSent</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>50</code><br><code>25</code><br><code>100</code></div></td>
+                        <td class="reason">Key-based: 'totalSent' contains sensitive keywords → RPI<br>Value-based: Values match sensitive patterns ['phone', 'cvv', 'currency'] → PCI, SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('totalSent', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">smsCount</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span><span class="category-tag pci">PCI</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.usage.smsCount</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>50</code><br><code>25</code><br><code>100</code></div></td>
+                        <td class="reason">Key-based: 'smsCount' contains sensitive keywords → CPNI<br>Value-based: Values match sensitive patterns ['phone', 'cvv', 'currency'] → PCI, SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('smsCount', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">usagePeriod</span><span class="key-based-indicator">KEY</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span><span class="category-tag spi">SPI</span></div></td>
+                        <td><div class="field-path">response.usage.usagePeriod</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>2024-07-01 to 2024-07-31</code></div></td>
+                        <td class="reason">Key-based: 'usagePeriod' contains sensitive keywords → CPNI, SPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('usagePeriod', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">internationalMinutes</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag cso">CSO</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.usage.voice.internationalMinutes</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>15</code><br><code>0</code><br><code>25</code></div></td>
+                        <td class="reason">Key-based: 'internationalMinutes' contains sensitive keywords → CSO<br>Value-based: Values match sensitive patterns ['phone', 'currency'] → SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('internationalMinutes', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">offPeakMinutes</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag pci">PCI</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.usage.voice.offPeakMinutes</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>250</code><br><code>73</code><br><code>489</code></div></td>
+                        <td class="reason">Value-based: Values match sensitive patterns ['phone', 'cvv', 'currency'] → PCI, SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('offPeakMinutes', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">peakMinutes</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag pci">PCI</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.usage.voice.peakMinutes</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>200</code><br><code>50</code><br><code>300</code></div></td>
+                        <td class="reason">Value-based: Values match sensitive patterns ['phone', 'cvv', 'currency'] → PCI, SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('peakMinutes', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">totalMinutes</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag pci">PCI</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.usage.voice.totalMinutes</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>450</code><br><code>123</code><br><code>789</code></div></td>
+                        <td class="reason">Key-based: 'totalMinutes' contains sensitive keywords → RPI<br>Value-based: Values match sensitive patterns ['phone', 'cvv', 'currency'] → PCI, SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('totalMinutes', 'response', this)">Remove</button></td>
+                    </tr>
+
+                    <tr class="blacklisted">
+                        <td><span class="final-key">voiceMinutes</span><span class="key-based-indicator">KEY</span><span class="value-based-indicator">VALUE</span><br><div style="margin-top: 5px;"><span class="category-tag cpni">CPNI</span><span class="category-tag pci">PCI</span><span class="category-tag spi">SPI</span><span class="category-tag rpi">RPI</span></div></td>
+                        <td><div class="field-path">response.usage.voiceMinutes</div><div class="values" style="margin-top: 8px;"><strong>Values:</strong><br><code>450</code><br><code>123</code><br><code>789</code></div></td>
+                        <td class="reason">Key-based: 'voiceMinutes' contains sensitive keywords → CPNI<br>Value-based: Values match sensitive patterns ['phone', 'cvv', 'currency'] → PCI, SPI, RPI</td>
+                        <td><button class="btn-remove" onclick="removeFromBlacklist('voiceMinutes', 'response', this)">Remove</button></td>
+                    </tr>
+
+                </tbody>
+            </table>
+        </div>
+
+        <div class="config-section">
+            <h3>⚙️ Live Configuration (Updates as you click Add/Remove):</h3>
+            <button class="btn" onclick="exportConfiguration()" style="margin-bottom: 10px;">📥 Download Configuration File</button>
+            <button class="btn" onclick="saveDeveloperOverrides()" style="margin-bottom: 10px; margin-left: 10px;">💾 Save Developer Overrides</button>
+            <pre class="config-output" id="config-output">
+payload.blacklist=accountNumber,addr,age,apiVersion,balance,bankAccount,billingCycle,billingPeriod,birthDate,cardHolderName,cardNumber,cardholder,carrierCode,cellTowers,city,clientTimestamp,coordinates,creditCardNumber,customerId,customerTier,cvv,dataCharges,dataUsed,dateOfBirth,deviceFingerprint,driversLicense,email,eml,expiryMonth,expiryYear,firstName,fnme,fullName,gpsLocation,homeAddress,homeLocation,homePhone,imei,internationalMinutes,internationalSMS,ipAddresses,lastKnownLocation,lastLocation,lastName,lastPaymentAmount,latitude,longitude,lstnm,macAddress,manufacturer,marketSegment,mcc,mnc,mobile,msisdn,offPeakMinutes,passport,paymentAmount,peakMinutes,period,personalEmail,phne,phone,phoneNumber,processorResponse,requestId,requestSize,roamingCharges,roamingData,securityQuestions,serverTimestamp,sessionId,smsCharges,smsCount,socialSecurityNumber,ssn,state,street,surname,totalBytes,totalCharges,totalGB,totalMB,totalMinutes,totalReceived,totalSent,transactionId,usagePeriod,voiceCharges,voiceMinutes,zipCode
+headers.blacklist=authorization
+            </pre>
+        </div>
+
+        <div style="background: #d4edda; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3>🎯 How to Use Interactive Features:</h3>
+            <ol>
+                <li><strong>Review Auto-Detections:</strong> Check the automatically blacklisted fields in the table</li>
+                <li><strong>Add Missing Fields:</strong> Click "Add" on safe fields that should be blacklisted in your context</li>
+                <li><strong>Remove False Positives:</strong> Click "Remove" on blacklisted fields that aren't sensitive for you</li>
+                <li><strong>Save Your Changes:</strong> Click "💾 Save Overrides" to download developer_overrides.json</li>
+                <li><strong>Apply Changes:</strong> Place the file in your project directory and re-run the analysis</li>
+                <li><strong>Iterative Refinement:</strong> Continue refining across multiple sessions</li>
+            </ol>
+        </div>
+
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3>💾 Developer Override Persistence (Simplified):</h3>
+            <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #28a745;">
+                <h4>✨ New Simplified Workflow:</h4>
+                <ol>
+                    <li><strong>Make Changes:</strong> Click Add/Remove buttons as needed</li>
+                    <li><strong>Save Overrides:</strong> Click "💾 Save Overrides" to download <code>developer_overrides.json</code></li>
+                    <li><strong>Place File:</strong> Put the downloaded file in your project directory</li>
+                    <li><strong>Re-run Analysis:</strong> Run the script again - it will automatically load your overrides!</li>
+                </ol>
+            </div>
+            
+            <h4>📋 How it Works:</h4>
+            <ul>
+                <li>The tool checks for <code>developer_overrides.json</code> at startup</li>
+                <li>Your manual decisions are automatically applied during analysis</li>
+                <li>No merge script needed - just download and place the file</li>
+                <li>The file is self-documenting with usage instructions</li>
+                <li>You can edit the JSON file manually if needed</li>
+            </ul>
+            
+            <h4>🔄 Multiple Sessions:</h4>
+            <ul>
+                <li>Each save merges with existing overrides (if any)</li>
+                <li>Whitelist takes precedence over blacklist (no conflicts)</li>
+                <li>You can continue refining across multiple sessions</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>
