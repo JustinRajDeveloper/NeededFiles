@@ -1,0 +1,9 @@
+{
+  "manual_blacklist": [
+    "nextBillingDate",
+    "cardType"
+  ],
+  "manual_whitelist": [],
+  "last_updated": "2025-08-11 20:49:26",
+  "description": "Developer overrides for blacklist generation"
+}

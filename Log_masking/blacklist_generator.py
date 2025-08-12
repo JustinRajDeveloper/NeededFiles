@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
-Enhanced Interactive Telecom API Blacklist Generator
-Now includes:
-- Interactive Add/Remove buttons in HTML table
-- Real-time configuration updates
-- Developer override persistence in patterns_config.json
-- Recognition of manual overrides on subsequent runs
+Enhanced Interactive Telecom API Blacklist Generator with Developer UI
+NEW FEATURES:
+- Developer-friendly tabbed interface
+- Remove/Add buttons for dynamic field management
+- Downloadable developer overrides JSON
+- Automatic override loading and merging
+- Separate tables for exact match, value-based, exclusions, and safe fields
+- Complete field listings without truncation
 """
 
 import json
@@ -15,12 +17,14 @@ from datetime import datetime
 from typing import Dict, List, Set, Any
 from collections import defaultdict
 
-class TelecomBlacklistGenerator:
-    def __init__(self, patterns_file: str = 'patterns_config.json'):
+class EnhancedTelecomBlacklistGenerator:
+    def __init__(self, patterns_file: str = 'enhanced_patterns_config.json'):
         self.patterns_file = patterns_file
+        self.developer_overrides_file = 'developer_overrides.json'
         
         # Initialize all attributes with defaults
-        self.keywords = {}
+        self.exact_keywords = {}
+        self.entity_prefixes = []
         self.value_patterns = {}
         self.fuzzy_rules = {}
         self.exclusions = set()
@@ -28,260 +32,314 @@ class TelecomBlacklistGenerator:
         self.value_exclusions = set()
         self.business_value_patterns = []
         
-        # NEW: Developer overrides
+        # Developer overrides
         self.developer_overrides = {
-            'manual_blacklist': set(),  # Fields manually added to blacklist
-            'manual_whitelist': set()   # Fields manually excluded from blacklist
+            'manual_blacklist': set(),
+            'manual_whitelist': set()
         }
         
-        # Load patterns from file
-        self.load_patterns()
-        
         # Consolidated blacklists
-        self.payload_blacklist = set()  # Combined request + response
+        self.payload_blacklist = set()
         self.headers_blacklist = set()
         
-        # Detailed analysis for reporting
-        self.detailed_analysis = []
+        # Detailed analysis for reporting - categorized
+        self.exact_match_blacklisted = []
+        self.value_based_blacklisted = []
+        self.safe_fields = []
         self.excluded_fields = []
         
         # Compiled regex patterns
         self.compiled_patterns = {}
+        self.compiled_exact_patterns = {}
+        
+        # Load developer overrides first, then patterns
+        self.load_developer_overrides()
+        self.load_patterns()
         self.compile_patterns()
     
-    def merge_developer_overrides_into_patterns(self):
-        """Merge developer_overrides.json into patterns_config.json at startup"""
-        override_file = 'developer_overrides.json'
-        
-        if not os.path.exists(override_file):
-            return False
-        
-        try:
-            # Load developer overrides
-            with open(override_file, 'r') as f:
-                new_overrides = json.load(f)
-            
-            new_blacklist = set(new_overrides.get('manual_blacklist', []))
-            new_whitelist = set(new_overrides.get('manual_whitelist', []))
-            
-            if not new_blacklist and not new_whitelist:
-                return False
-            
-            print(f"📄 Found developer overrides file: {override_file}")
-            print(f"   • New manual blacklist: {len(new_blacklist)} fields")
-            print(f"   • New manual whitelist: {len(new_whitelist)} fields")
-            
-            # Load current patterns config
-            with open(self.patterns_file, 'r') as f:
-                patterns_config = json.load(f)
-            
-            # Get existing overrides from patterns config
-            existing_overrides = patterns_config.get('developer_overrides', {})
-            existing_blacklist = set(existing_overrides.get('manual_blacklist', []))
-            existing_whitelist = set(existing_overrides.get('manual_whitelist', []))
-            
-            # Merge: union of existing and new
-            merged_blacklist = existing_blacklist.union(new_blacklist)
-            merged_whitelist = existing_whitelist.union(new_whitelist)
-            
-            # Remove conflicts: whitelist takes precedence
-            final_blacklist = merged_blacklist - merged_whitelist
-            final_whitelist = merged_whitelist
-            
-            print(f"🔄 Merging with existing overrides in patterns config:")
-            print(f"   • Existing blacklist: {len(existing_blacklist)} fields")
-            print(f"   • Existing whitelist: {len(existing_whitelist)} fields")
-            print(f"   • Final blacklist: {len(final_blacklist)} fields")
-            print(f"   • Final whitelist: {len(final_whitelist)} fields")
-            
-            # Update patterns config with merged overrides
-            patterns_config['developer_overrides'] = {
-                'manual_blacklist': sorted(list(final_blacklist)),
-                'manual_whitelist': sorted(list(final_whitelist)),
-                'last_merged': datetime.now().isoformat(),
-                'merged_from': override_file
-            }
-            
-            # Create backup of patterns config
-            backup_file = f"{self.patterns_file}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            with open(backup_file, 'w') as f:
-                json.dump(patterns_config, f, indent=2)
-            
-            # Save updated patterns config
-            with open(self.patterns_file, 'w') as f:
-                json.dump(patterns_config, f, indent=2)
-            
-            # Remove the developer overrides file (it's been merged)
-            os.remove(override_file)
-            
-            print(f"✅ Successfully merged overrides into {self.patterns_file}")
-            print(f"💾 Created backup: {backup_file}")
-            print(f"🗑️  Removed {override_file} (successfully merged)")
-            
-            return True
-            
-        except Exception as e:
-            print(f"❌ Error merging developer overrides: {e}")
-            return False
+    def load_developer_overrides(self):
+        """Load and merge developer overrides if file exists"""
+        if os.path.exists(self.developer_overrides_file):
+            try:
+                with open(self.developer_overrides_file, 'r') as f:
+                    overrides = json.load(f)
+                
+                self.developer_overrides = {
+                    'manual_blacklist': set(overrides.get('manual_blacklist', [])),
+                    'manual_whitelist': set(overrides.get('manual_whitelist', []))
+                }
+                
+                print(f"✅ Loaded developer overrides from {self.developer_overrides_file}")
+                print(f"   Manual blacklist: {len(self.developer_overrides['manual_blacklist'])} fields")
+                print(f"   Manual whitelist: {len(self.developer_overrides['manual_whitelist'])} fields")
+                
+                # Merge into patterns config if it exists
+                self.merge_overrides_to_patterns()
+                
+            except Exception as e:
+                print(f"⚠️  Error loading developer overrides: {e}")
+                self.developer_overrides = {'manual_blacklist': set(), 'manual_whitelist': set()}
+        else:
+            print(f"📝 No existing developer overrides file found")
     
-    def load_patterns(self):
-        """Load patterns from external configuration file including developer overrides"""
-        # FIRST: Check and merge any developer_overrides.json file
-        self.merge_developer_overrides_into_patterns()
-        
-        try:
-            with open(self.patterns_file, 'r') as f:
-                config = json.load(f)
-            
-            self.keywords = config.get('keywords', {})
-            self.value_patterns = config.get('value_patterns', {})
-            self.fuzzy_rules = config.get('fuzzy_rules', {})
-            self.exclusions = set(config.get('exclusions', []))
-            self.pattern_mappings = config.get('pattern_mappings', {})
-            self.value_exclusions = set(config.get('value_exclusions', []))
-            self.business_value_patterns = config.get('business_value_patterns', [])
-            
-            # Load developer overrides from patterns config (now the single source of truth)
-            overrides = config.get('developer_overrides', {})
-            self.developer_overrides = {
-                'manual_blacklist': set(overrides.get('manual_blacklist', [])),
-                'manual_whitelist': set(overrides.get('manual_whitelist', []))
-            }
-            
-            print(f"✅ Loaded patterns from {self.patterns_file}")
-            if self.developer_overrides['manual_blacklist']:
-                print(f"👨‍💻 Developer manual blacklist: {len(self.developer_overrides['manual_blacklist'])} fields")
-                print(f"   Examples: {', '.join(list(self.developer_overrides['manual_blacklist'])[:5])}")
-            if self.developer_overrides['manual_whitelist']:
-                print(f"👨‍💻 Developer manual whitelist: {len(self.developer_overrides['manual_whitelist'])} fields")
-                print(f"   Examples: {', '.join(list(self.developer_overrides['manual_whitelist'])[:5])}")
-            
-        except FileNotFoundError:
-            print(f"❌ Pattern file {self.patterns_file} not found. Creating default...")
-            self.create_default_patterns_file()
-            self.load_patterns()
-        except json.JSONDecodeError as e:
-            print(f"❌ Error parsing {self.patterns_file}: {e}")
-            raise
-        """Load patterns from external configuration file including developer overrides"""
-        try:
-            with open(self.patterns_file, 'r') as f:
-                config = json.load(f)
-            
-            self.keywords = config.get('keywords', {})
-            self.value_patterns = config.get('value_patterns', {})
-            self.fuzzy_rules = config.get('fuzzy_rules', {})
-            self.exclusions = set(config.get('exclusions', []))
-            self.pattern_mappings = config.get('pattern_mappings', {})
-            self.value_exclusions = set(config.get('value_exclusions', []))
-            self.business_value_patterns = config.get('business_value_patterns', [])
-            
-            # NEW: Load developer overrides
-            overrides = config.get('developer_overrides', {})
-            self.developer_overrides = {
-                'manual_blacklist': set(overrides.get('manual_blacklist', [])),
-                'manual_whitelist': set(overrides.get('manual_whitelist', []))
-            }
-            
-            print(f"✅ Loaded patterns from {self.patterns_file}")
-            if self.developer_overrides['manual_blacklist']:
-                print(f"📋 Developer manual blacklist: {len(self.developer_overrides['manual_blacklist'])} fields")
-            if self.developer_overrides['manual_whitelist']:
-                print(f"📋 Developer manual whitelist: {len(self.developer_overrides['manual_whitelist'])} fields")
-            
-        except FileNotFoundError:
-            print(f"❌ Pattern file {self.patterns_file} not found. Creating default...")
-            self.create_default_patterns_file()
-            self.load_patterns()
-        except json.JSONDecodeError as e:
-            print(f"❌ Error parsing {self.patterns_file}: {e}")
-            raise
+    def merge_overrides_to_patterns(self):
+        """Merge developer overrides into patterns config file"""
+        if os.path.exists(self.patterns_file):
+            try:
+                with open(self.patterns_file, 'r') as f:
+                    config = json.load(f)
+                
+                # Update developer overrides in patterns config
+                config['developer_overrides'] = {
+                    'manual_blacklist': list(self.developer_overrides['manual_blacklist']),
+                    'manual_whitelist': list(self.developer_overrides['manual_whitelist'])
+                }
+                
+                # Write back to patterns file
+                with open(self.patterns_file, 'w') as f:
+                    json.dump(config, f, indent=2)
+                
+                print(f"🔄 Merged developer overrides into {self.patterns_file}")
+                
+            except Exception as e:
+                print(f"⚠️  Error merging overrides to patterns: {e}")
     
-    def save_developer_overrides(self):
-        """Save developer overrides back to patterns_config.json"""
-        try:
-            # Load current config
-            with open(self.patterns_file, 'r') as f:
-                config = json.load(f)
+    def create_enhanced_patterns_file(self):
+        """Create enhanced patterns file with extensive abbreviations and exact matching"""
+        enhanced_config = {
+            "entity_prefixes": [
+                # Customer variations
+                "customer", "cust", "c", "client", "cli", "subscriber", "sub", "s",
+                "user", "usr", "u", "person", "pers", "p", "individual", "ind",
+                "account", "acc", "acct", "a", "member", "mem", "m", "profile", "prof",
+                
+                # Business entities
+                "employee", "emp", "e", "staff", "operator", "op", "admin", "administrator",
+                "contact", "cont", "owner", "holder", "cardholder", "ch",
+                
+                # System entities
+                "primary", "prim", "secondary", "sec", "billing", "bill", "payment", "pay",
+                "emergency", "emerg", "backup", "temp", "temporary", "alt", "alternate"
+            ],
             
-            # Update developer overrides
-            config['developer_overrides'] = {
-                'manual_blacklist': list(self.developer_overrides['manual_blacklist']),
-                'manual_whitelist': list(self.developer_overrides['manual_whitelist'])
-            }
-            
-            # Save back to file
-            with open(self.patterns_file, 'w') as f:
-                json.dump(config, f, indent=2)
-            
-            print(f"💾 Saved developer overrides to {self.patterns_file}")
-            
-        except Exception as e:
-            print(f"❌ Error saving developer overrides: {e}")
-    
-    def create_default_patterns_file(self):
-        """Create default patterns file if it doesn't exist"""
-        default_config = {
-            "keywords": {
-                "spi": [
-                    "name", "nm", "fname", "lname", "fnme", "lstnm", "firstname", "lastname", 
-                    "fullname", "surname", "givenname", "familyname", "username", "uname", 
-                    "usrnm", "displayname", "nickname", "alias",
-                    "email", "eml", "emailaddr", "emailaddress", "mail", "mailaddr", "contact",
-                    "contactemail", "emailid", "userid", "user_email", "e_mail",
-                    "phone", "phne", "phn", "tel", "telephone", "mobile", "mob", "cell", 
-                    "cellular", "msisdn", "contactno", "contactnumber", "phoneno", "phonenumber",
-                    "ph", "tel_no", "telephone_no",
-                    "address", "addr", "location", "loc", "street", "st", "city", "state", 
-                    "zip", "zipcode", "postal", "postalcode", "country", "region", "area",
-                    "ssn", "social", "socialsecurity", "taxid", "nationalid", "passport", 
-                    "license", "driverlicense", "citizenid", "personid", "identityno", "identification",
-                    "dob", "dateofbirth", "birthdate", "birthday", "bday", "birth", "born", 
-                    "age", "dateborn", "birth_date", "date_of_birth",
-                    "subscriber", "customer", "cust", "personal", "individual", "person", 
-                    "profile", "identity", "ident", "private"
-                ],
-                "cpni": [
-                    "call", "cll", "sms", "message", "msg", "communication", "comm", 
-                    "conversation", "chat", "voice", "audio",
-                    "data", "usage", "consumed", "volume", "bytes", "mb", "gb", "traffic", 
-                    "bandwidth", "speed", "throughput", "transfer",
-                    "network", "net", "nw", "cell", "tower", "antenna", "signal", "coverage", 
-                    "connection", "conn", "session", "bearer",
-                    "location", "loc", "position", "pos", "coordinates", "coord", "lat", "lng", 
-                    "latitude", "longitude", "gps", "geolocation", "geo",
-                    "service", "svc", "plan", "subscription", "sub", "activation", "provision", 
-                    "feature", "addon", "package",
-                    "imsi", "imei", "mcc", "mnc", "lac", "cgi", "cellid", "networkid", 
-                    "operatorid", "carrier",
-                    "session", "sess", "duration", "time", "period", "start", "end", "begin", 
-                    "finish", "timestamp"
-                ],
-                "rpi": [
-                    "payment", "pay", "billing", "bill", "invoice", "charge", "fee", "cost", 
-                    "price", "amount", "amt", "total", "sum",
-                    "balance", "bal", "credit", "debit", "account", "acct", "financial", 
-                    "finance", "money", "currency", "revenue", "income",
-                    "transaction", "trans", "purchase", "sale", "order", "receipt", 
-                    "payment_id", "transaction_id", "reference", "ref",
-                    "card", "cc", "creditcard", "debitcard", "cardno", "cardnumber", "cardholder"
-                ],
-                "cso": [
-                    "ticket", "support", "help", "issue", "problem", "complaint", "feedback", 
-                    "note", "comment", "remark",
-                    "internal", "int", "employee", "emp", "staff", "operator", "op", "admin", 
-                    "system", "sys", "config", "setting",
-                    "metric", "performance", "perf", "quality", "log", "audit", "monitor", 
-                    "track", "measure", "stats", "statistics"
-                ],
-                "pci": [
-                    "card", "cc", "creditcard", "debitcard", "pan", "cardnumber", "cardno", 
-                    "ccnumber", "accountnumber",
-                    "cvv", "cvc", "cvn", "cid", "securitycode", "verificationcode", "checkcode",
-                    "expiry", "expire", "expiration", "exp", "expirydate", "validthru", 
-                    "cardholder", "holdername"
-                ]
+            "exact_keywords": {
+                "spi": {
+                    # Name variations - EXTENSIVE LIST
+                    "name_fields": [
+                        # Full name variations
+                        "name", "nm", "nme", "fullname", "full_name", "completename", "complete_name",
+                        "wholename", "whole_name", "entirename", "entire_name",
+                        
+                        # First name variations
+                        "firstname", "first_name", "fname", "fnme", "fn", "f_name", "givenname", 
+                        "given_name", "forename", "fore_name", "prename", "pre_name",
+                        
+                        # Last name variations
+                        "lastname", "last_name", "lname", "lnme", "ln", "l_name", "surname", 
+                        "sur_name", "familyname", "family_name", "patronymic",
+                        
+                        # Middle name variations
+                        "middlename", "middle_name", "mname", "mnme", "mn", "m_name",
+                        "middleinitial", "middle_initial", "mi",
+                        
+                        # Other name variations
+                        "displayname", "display_name", "nickname", "nick_name", "alias", 
+                        "username", "user_name", "uname", "usrnm", "screenname", "screen_name",
+                        "handle", "moniker", "title", "suffix", "prefix", "maiden", "maidenname"
+                    ],
+                    
+                    # Email variations - EXTENSIVE LIST
+                    "email_fields": [
+                        "email", "eml", "em", "e_mail", "emailaddr", "email_addr", "emailaddress", 
+                        "email_address", "mail", "mailaddr", "mail_addr", "mailaddress", "mail_address",
+                        "contact", "contactemail", "contact_email", "emailid", "email_id", 
+                        "mailid", "mail_id", "emailaccount", "email_account", "mailaccount", "mail_account",
+                        "workmail", "work_mail", "workemail", "work_email", "businessemail", "business_email",
+                        "personalemail", "personal_email", "homemail", "home_mail", "homeemail", "home_email",
+                        "primaryemail", "primary_email", "secondaryemail", "secondary_email",
+                        "alternateemail", "alternate_email", "backupemail", "backup_email"
+                    ],
+                    
+                    # Phone variations - EXTENSIVE LIST
+                    "phone_fields": [
+                        "phone", "phn", "phne", "ph", "fone", "tel", "telephone", "tele", "mobile", 
+                        "mob", "cell", "cellular", "cellphone", "cell_phone", "mobilephone", "mobile_phone",
+                        "msisdn", "number", "num", "no", "phoneno", "phone_no", "phonenumber", "phone_number",
+                        "contactno", "contact_no", "contactnumber", "contact_number", "tel_no", "telephone_no",
+                        "homephone", "home_phone", "workphone", "work_phone", "businessphone", "business_phone",
+                        "officephone", "office_phone", "personalphone", "personal_phone", "mobilenum", "mobile_num",
+                        "cellnum", "cell_num", "phoneline", "phone_line", "line", "extension", "ext",
+                        "primaryphone", "primary_phone", "secondaryphone", "secondary_phone", "fax", "faxno", "fax_no"
+                    ],
+                    
+                    # Address variations - EXTENSIVE LIST
+                    "address_fields": [
+                        "address", "addr", "add", "location", "loc", "place", "residence", "dwelling",
+                        "street", "st", "str", "streetaddress", "street_address", "streetaddr", "street_addr",
+                        "homeaddress", "home_address", "workaddress", "work_address", "businessaddress", "business_address",
+                        "mailingaddress", "mailing_address", "billingaddress", "billing_address", "shippingaddress", "shipping_address",
+                        "physicaladdress", "physical_address", "residentialaddress", "residential_address",
+                        "primaryaddress", "primary_address", "secondaryaddress", "secondary_address",
+                        
+                        # Address components
+                        "city", "town", "municipality", "locality", "county", "state", "province", "region", 
+                        "country", "nation", "zip", "zipcode", "zip_code", "postal", "postalcode", "postal_code",
+                        "postcode", "post_code", "area", "areacode", "area_code", "district", "zone",
+                        "apartment", "apt", "unit", "suite", "ste", "floor", "building", "bldg"
+                    ],
+                    
+                    # Date of Birth variations - EXTENSIVE LIST
+                    "dob_fields": [
+                        "dob", "dateofbirth", "date_of_birth", "birthdate", "birth_date", "birthday", "bday", "b_day",
+                        "birth", "born", "birthtime", "birth_time", "dateborn", "date_born", "db", "bd",
+                        "birthyear", "birth_year", "birthmonth", "birth_month", "birthday", "birth_day",
+                        "dobirth", "do_birth", "nativity", "natal", "age", "yob", "year_of_birth"
+                    ],
+                    
+                    # SSN and ID variations - EXTENSIVE LIST
+                    "ssn_fields": [
+                        "ssn", "socialsecurity", "social_security", "socialsecuritynumber", "social_security_number",
+                        "social", "taxid", "tax_id", "taxpayerid", "taxpayer_id", "tin", "ein",
+                        "nationalid", "national_id", "nationalnumber", "national_number", "citizenid", "citizen_id",
+                        "identityno", "identity_no", "identitynumber", "identity_number", "identification", "ident",
+                        "personalid", "personal_id", "personid", "person_id", "individualid", "individual_id",
+                        "govid", "gov_id", "governmentid", "government_id", "federalid", "federal_id"
+                    ],
+                    
+                    # License variations - EXTENSIVE LIST
+                    "license_fields": [
+                        "license", "licence", "driverlicense", "driver_license", "driverlicence", "driver_licence",
+                        "dl", "dln", "driverlicensenumber", "driver_license_number", "licensenum", "license_num",
+                        "drivinglicense", "driving_license", "drivingpermit", "driving_permit", "permit",
+                        "passport", "passportno", "passport_no", "passportnumber", "passport_number",
+                        "passportid", "passport_id", "visa", "visano", "visa_no", "visanumber", "visa_number"
+                    ],
+                    
+                    # General personal identifiers
+                    "personal_fields": [
+                        "subscriber", "customer", "cust", "personal", "individual", "person", "profile",
+                        "identity", "ident", "private", "confidential", "sensitive", "pii", "personalinfo", "personal_info"
+                    ]
+                },
+                
+                "cpni": {
+                    # Communication variations
+                    "communication_fields": [
+                        "call", "cll", "calling", "voice", "voicecall", "voice_call", "conversation", "conv",
+                        "sms", "message", "msg", "text", "textmessage", "text_message", "mms", "chat",
+                        "communication", "comm", "talk", "audio", "recording", "rec"
+                    ],
+                    
+                    # Data usage variations
+                    "usage_fields": [
+                        "data", "usage", "consumed", "consumption", "volume", "bytes", "mb", "gb", "tb",
+                        "megabytes", "gigabytes", "terabytes", "kilobytes", "kb", "traffic", "bandwidth", "bw",
+                        "speed", "throughput", "transfer", "download", "upload", "stream", "streaming"
+                    ],
+                    
+                    # Network variations
+                    "network_fields": [
+                        "network", "net", "nw", "cell", "cellular", "tower", "antenna", "signal", "coverage",
+                        "connection", "conn", "session", "sess", "bearer", "carrier", "operator", "provider",
+                        "imsi", "imei", "mcc", "mnc", "lac", "cgi", "cellid", "cell_id", "networkid", "network_id",
+                        "operatorid", "operator_id", "carrierid", "carrier_id", "providerid", "provider_id"
+                    ],
+                    
+                    # Location variations
+                    "location_fields": [
+                        "location", "loc", "position", "pos", "coordinates", "coord", "coords", "gps",
+                        "latitude", "lat", "longitude", "lng", "lon", "geolocation", "geo", "geocode",
+                        "place", "whereabouts", "locale", "spot", "site", "point", "area", "zone", "region"
+                    ],
+                    
+                    # Service variations
+                    "service_fields": [
+                        "service", "svc", "plan", "package", "subscription", "sub", "activation", "provision",
+                        "feature", "addon", "add_on", "option", "roaming", "international", "domestic"
+                    ],
+                    
+                    # Session and timing variations
+                    "session_fields": [
+                        "session", "sess", "duration", "time", "period", "start", "end", "begin", "finish",
+                        "timestamp", "starttime", "start_time", "endtime", "end_time", "calltime", "call_time"
+                    ]
+                },
+                
+                "rpi": {
+                    # Payment variations
+                    "payment_fields": [
+                        "payment", "pay", "billing", "bill", "invoice", "charge", "fee", "cost", "price",
+                        "amount", "amt", "total", "sum", "subtotal", "grandtotal", "grand_total",
+                        "balance", "bal", "credit", "debit", "debt", "owed", "due", "outstanding"
+                    ],
+                    
+                    # Financial variations
+                    "financial_fields": [
+                        "account", "acct", "financial", "finance", "money", "currency", "revenue", "income",
+                        "expense", "expenditure", "transaction", "trans", "purchase", "sale", "order",
+                        "receipt", "paymentid", "payment_id", "transactionid", "transaction_id", "reference", "ref",
+                        "confirmation", "conf", "approval", "auth", "authorization"
+                    ],
+                    
+                    # Card variations
+                    "card_fields": [
+                        "card", "cc", "creditcard", "credit_card", "debitcard", "debit_card", "cardno", "card_no",
+                        "cardnumber", "card_number", "cardholder", "card_holder", "cardname", "card_name",
+                        "cardtype", "card_type", "cardissuer", "card_issuer", "paymentcard", "payment_card",
+                        "bankcard", "bank_card", "plasticcard", "plastic_card"
+                    ]
+                },
+                
+                "cso": {
+                    # Support variations
+                    "support_fields": [
+                        "ticket", "support", "help", "issue", "problem", "complaint", "feedback", "note",
+                        "comment", "remark", "observation", "report", "incident", "case", "request", "req"
+                    ],
+                    
+                    # Internal variations
+                    "internal_fields": [
+                        "internal", "int", "employee", "emp", "staff", "operator", "op", "admin", "administrator",
+                        "system", "sys", "config", "configuration", "setting", "settings", "parameter", "param"
+                    ],
+                    
+                    # Metrics variations
+                    "metrics_fields": [
+                        "metric", "performance", "perf", "quality", "log", "audit", "monitor", "monitoring",
+                        "track", "tracking", "measure", "measurement", "stats", "statistics", "analytics",
+                        "kpi", "indicator", "score", "rating", "benchmark"
+                    ]
+                },
+                
+                "pci": {
+                    # Card number variations
+                    "card_number_fields": [
+                        "card", "cc", "creditcard", "credit_card", "debitcard", "debit_card", "pan",
+                        "cardnumber", "card_number", "cardno", "card_no", "ccnumber", "cc_number",
+                        "accountnumber", "account_number", "number", "num", "no"
+                    ],
+                    
+                    # Security code variations
+                    "security_code_fields": [
+                        "cvv", "cvc", "cvn", "cid", "securitycode", "security_code", "verificationcode",
+                        "verification_code", "checkcode", "check_code", "csc", "cardcode", "card_code",
+                        "securitynumber", "security_number", "pin", "pincode", "pin_code"
+                    ],
+                    
+                    # Expiry variations
+                    "expiry_fields": [
+                        "expiry", "expire", "expiration", "exp", "expirydate", "expiry_date", "expirationdate",
+                        "expiration_date", "validthru", "valid_thru", "validuntil", "valid_until", "goodthru", "good_thru"
+                    ],
+                    
+                    # Cardholder variations
+                    "cardholder_fields": [
+                        "cardholder", "card_holder", "holdername", "holder_name", "cardname", "card_name",
+                        "nameoncard", "name_on_card", "cardownername", "card_owner_name", "ownername", "owner_name"
+                    ]
+                }
             },
+            
             "value_patterns": {
                 "email": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
                 "phone": "^\\+?[1-9]\\d{1,14}$|^\\(\\d{3}\\)\\s?\\d{3}-\\d{4}$|^\\d{10,15}$",
@@ -299,29 +357,7 @@ class TelecomBlacklistGenerator:
                 "long_numeric_id": "^\\d{6,20}$",
                 "alphanumeric_id": "^[A-Z0-9]{6,20}$"
             },
-            "fuzzy_rules": {
-                "fnme": "firstname",
-                "lstnm": "lastname", 
-                "nm": "name",
-                "phne": "phone",
-                "eml": "email",
-                "addr": "address",
-                "usr": "user",
-                "cst": "customer",
-                "sub": "subscriber",
-                "no": "number",
-                "num": "number",
-                "id": "identifier",
-                "ref": "reference",
-                "amt": "amount",
-                "bal": "balance",
-                "acct": "account",
-                "pymt": "payment",
-                "tel": "telephone",
-                "mob": "mobile",
-                "loc": "location",
-                "coord": "coordinates"
-            },
+            
             "exclusions": [
                 "status", "code", "type", "version", "timestamp", "method", "protocol", 
                 "format", "encoding", "charset", "limit", "offset", "page", "size", 
@@ -334,6 +370,7 @@ class TelecomBlacklistGenerator:
                 "locale", "timezone", "currency", "region", "country", "position",
                 "subtype", "subclass", "subcategory", "subgroup", "sublevel"
             ],
+            
             "pattern_mappings": {
                 "email": ["SPI"],
                 "phone": ["SPI"],
@@ -351,6 +388,7 @@ class TelecomBlacklistGenerator:
                 "long_numeric_id": ["CONTEXTUAL"],
                 "alphanumeric_id": ["CONTEXTUAL"]
             },
+            
             "value_exclusions": [
                 "true", "false", "null", "undefined", "yes", "no", "on", "off", 
                 "enabled", "disabled", "active", "inactive", "valid", "invalid",
@@ -360,6 +398,7 @@ class TelecomBlacklistGenerator:
                 "public", "private", "internal", "external", "open", "closed",
                 "available", "unavailable", "online", "offline", "ready", "busy"
             ],
+            
             "business_value_patterns": [
                 "^(MATURE|NEW|OLD|CURRENT|EXPIRED|DRAFT|FINAL)$",
                 "^(HIGH|MEDIUM|LOW|BASIC|PREMIUM|STANDARD|ADVANCED)$", 
@@ -368,24 +407,79 @@ class TelecomBlacklistGenerator:
                 "^(ACTIVE|INACTIVE|ENABLED|DISABLED|VALID|INVALID)$",
                 "^(SUCCESS|FAILURE|OK|ERROR|PENDING|COMPLETED)$"
             ],
+            
             "developer_overrides": {
-                "manual_blacklist": [],
-                "manual_whitelist": []
+                "manual_blacklist": list(self.developer_overrides.get('manual_blacklist', [])),
+                "manual_whitelist": list(self.developer_overrides.get('manual_whitelist', []))
             }
         }
         
         with open(self.patterns_file, 'w') as f:
-            json.dump(default_config, f, indent=2)
-        print(f"📄 Created default patterns file: {self.patterns_file}")
+            json.dump(enhanced_config, f, indent=2)
+        print(f"📄 Created enhanced patterns file: {self.patterns_file}")
+    
+    def load_patterns(self):
+        """Load enhanced patterns from configuration file"""
+        try:
+            with open(self.patterns_file, 'r') as f:
+                config = json.load(f)
+            
+            self.exact_keywords = config.get('exact_keywords', {})
+            self.entity_prefixes = config.get('entity_prefixes', [])
+            self.value_patterns = config.get('value_patterns', {})
+            self.exclusions = set(config.get('exclusions', []))
+            self.pattern_mappings = config.get('pattern_mappings', {})
+            self.value_exclusions = set(config.get('value_exclusions', []))
+            self.business_value_patterns = config.get('business_value_patterns', [])
+            
+            # Merge any existing developer overrides from patterns file
+            pattern_overrides = config.get('developer_overrides', {})
+            if pattern_overrides:
+                existing_blacklist = set(pattern_overrides.get('manual_blacklist', []))
+                existing_whitelist = set(pattern_overrides.get('manual_whitelist', []))
+                
+                # Merge with loaded overrides
+                self.developer_overrides['manual_blacklist'].update(existing_blacklist)
+                self.developer_overrides['manual_whitelist'].update(existing_whitelist)
+            
+            print(f"✅ Loaded enhanced patterns from {self.patterns_file}")
+            print(f"🎯 Entity prefixes: {len(self.entity_prefixes)}")
+            print(f"🎯 Exact keyword categories: {len(self.exact_keywords)}")
+            
+            # Print stats for each category
+            for category, subcategories in self.exact_keywords.items():
+                total_keywords = sum(len(keywords) for keywords in subcategories.values())
+                print(f"   {category.upper()}: {total_keywords} exact keywords across {len(subcategories)} subcategories")
+            
+        except FileNotFoundError:
+            print(f"❌ Pattern file {self.patterns_file} not found. Creating enhanced default...")
+            self.create_enhanced_patterns_file()
+            self.load_patterns()
+        except json.JSONDecodeError as e:
+            print(f"❌ Error parsing {self.patterns_file}: {e}")
+            raise
     
     def compile_patterns(self):
-        """Compile regex patterns for better performance"""
+        """Compile regex patterns for exact word matching"""
+        # Compile value patterns
         for pattern_name, pattern_str in self.value_patterns.items():
             try:
                 flags = re.IGNORECASE if 'Jan|Feb|Mar' in pattern_str else 0
                 self.compiled_patterns[pattern_name] = re.compile(pattern_str, flags)
             except re.error as e:
                 print(f"⚠️  Invalid regex pattern '{pattern_name}': {e}")
+        
+        # Compile exact word matching patterns for each category
+        for category, subcategories in self.exact_keywords.items():
+            self.compiled_exact_patterns[category] = {}
+            for subcategory, keywords in subcategories.items():
+                # Create word boundary regex for exact matching
+                escaped_keywords = [re.escape(keyword) for keyword in keywords]
+                pattern = r'\b(?:' + '|'.join(escaped_keywords) + r')\b'
+                try:
+                    self.compiled_exact_patterns[category][subcategory] = re.compile(pattern, re.IGNORECASE)
+                except re.error as e:
+                    print(f"⚠️  Invalid exact pattern for {category}.{subcategory}: {e}")
     
     def extract_final_key(self, field_path: str) -> str:
         """Extract the final key from a field path"""
@@ -403,11 +497,80 @@ class TelecomBlacklistGenerator:
             return 'headers'
         return 'unknown'
     
-    def has_code_or_type_suffix(self, field_name: str) -> bool:
-        """Check if field ends with 'code' or 'type' but is NOT sensitive data - FIXED VERSION"""
+    def extract_entity_and_field(self, field_name: str) -> tuple:
+        """
+        Extract entity prefix and field name from compound fields
+        Returns: (entity_prefix, field_name, is_compound)
+        """
         field_lower = field_name.lower()
         
-        # IMPORTANT: Fields that END with 'code' but are actually SENSITIVE DATA
+        # Check if field starts with any entity prefix
+        for prefix in self.entity_prefixes:
+            prefix_lower = prefix.lower()
+            if field_lower.startswith(prefix_lower) and len(field_lower) > len(prefix_lower):
+                # Extract the remaining part after prefix
+                remaining = field_lower[len(prefix_lower):]
+                # Check if remaining part starts with a capital (camelCase) or underscore
+                original_remaining = field_name[len(prefix):]
+                if (original_remaining and original_remaining[0].isupper()) or field_name[len(prefix):].startswith('_'):
+                    clean_remaining = original_remaining.lstrip('_').lower()
+                    return (prefix, clean_remaining, True)
+        
+        return (None, field_lower, False)
+    
+    def exact_keyword_match(self, field_path: str) -> List[str]:
+        """Enhanced exact keyword matching with entity prefix support"""
+        final_key = self.extract_final_key(field_path).lower()
+        
+        # Check developer overrides first
+        if final_key in self.developer_overrides['manual_whitelist']:
+            return []
+        
+        if final_key in self.developer_overrides['manual_blacklist']:
+            return ['DEVELOPER_MANUAL']
+        
+        # Extract entity and field components
+        entity_prefix, field_name, is_compound = self.extract_entity_and_field(final_key)
+        
+        matched_categories = []
+        
+        # Check exact matches for each category
+        for category, subcategories in self.compiled_exact_patterns.items():
+            category_matched = False
+            
+            for subcategory, compiled_pattern in subcategories.items():
+                # Check direct field name match
+                if compiled_pattern.search(field_name):
+                    matched_categories.append(category.upper())
+                    category_matched = True
+                    print(f"🎯 EXACT MATCH: '{final_key}' -> {category.upper()} ({subcategory})")
+                    if is_compound:
+                        print(f"   └── Compound field: entity='{entity_prefix}' + field='{field_name}'")
+                    break
+            
+            # If compound field and no direct match, check if entity suggests sensitivity
+            if is_compound and not category_matched and entity_prefix:
+                # Check if entity prefix itself indicates personal/sensitive data
+                sensitive_entities = ['customer', 'person', 'user', 'subscriber', 'individual', 'profile']
+                if entity_prefix.lower() in sensitive_entities:
+                    # Check if the field part matches any pattern in this category
+                    for subcategory, compiled_pattern in subcategories.items():
+                        if compiled_pattern.search(field_name):
+                            matched_categories.append(category.upper())
+                            print(f"🎯 ENTITY + FIELD MATCH: '{final_key}' -> {category.upper()} (entity: {entity_prefix})")
+                            break
+        
+        return list(set(matched_categories))
+    
+    def should_exclude(self, final_key: str) -> bool:
+        """Check if field should be excluded from blacklist"""
+        return final_key.lower() in self.exclusions
+    
+    def has_code_or_type_suffix(self, field_name: str) -> bool:
+        """Check if field ends with 'code' or 'type' but is NOT sensitive data"""
+        field_lower = field_name.lower()
+        
+        # Sensitive code exceptions that should NOT be excluded
         sensitive_code_exceptions = [
             'zipcode', 'postalcode', 'areacode', 'countrycode', 'regioncode',
             'securitycode', 'verificationcode', 'accesscode', 'pincode',
@@ -419,7 +582,7 @@ class TelecomBlacklistGenerator:
         if any(exception in field_lower for exception in sensitive_code_exceptions):
             return False
         
-        # Check for classification suffixes that indicate non-sensitive enum/type fields
+        # Classification suffixes that indicate non-sensitive enum/type fields
         classification_suffixes = [
             'code', 'type', 'method', 'format', 'style', 'mode', 'kind',
             'category', 'class', 'classification', 'scheme', 'strategy',
@@ -440,266 +603,26 @@ class TelecomBlacklistGenerator:
                 if pattern in field_lower and not any(sensitive in field_lower for sensitive in sensitive_code_exceptions):
                     return True
             
-            # If it's just "code" at the end without business context, check if it could be sensitive
-            # Fields like "zipCode", "securityCode" should not be excluded
             return False
         
-        # For other suffixes (type, method, etc.), apply normal logic
+        # For other suffixes, apply normal logic
         for suffix in classification_suffixes[1:]:  # Skip 'code' since we handled it above
             if field_lower.endswith(suffix):
                 return True
         
         return False
     
-    def is_system_identifier_field(self, field_path: str) -> bool:
-        """Check if field is a system-generated identifier (not sensitive personal data)"""
-        final_key = self.extract_final_key(field_path).lower()
-        
-        # System identifier patterns
-        system_id_patterns = [
-            'requestid', 'sessionid', 'transactionid', 'correlationid',
-            'messageid', 'batchid', 'processid', 'workflowid',
-            'fingerprint', 'devicefingerprint', 'browserfingerprint',
-            'traceid', 'spanid', 'logid', 'auditid',
-            'systemid', 'serverid', 'instanceid', 'nodeid'
-        ]
-        
-        # Additional context indicators for system fields
-        system_context_patterns = [
-            'system.', 'technical.', 'metadata.', 'internal.', 'debug.',
-            'trace.', 'audit.', 'log.', 'monitoring.'
-        ]
-        
-        field_path_lower = field_path.lower()
-        
-        # Check if it's a system identifier by name
-        if any(pattern in final_key for pattern in system_id_patterns):
-            return True
-        
-        # Check if it's in a system context
-        if any(context in field_path_lower for context in system_context_patterns):
-            return True
-        
-        return False
-    
-    def contextual_pattern_validation(self, field_path: str, value_str: str, pattern_name: str) -> bool:
-        """Validate that a pattern match makes sense in the context of the field name"""
-        final_key = self.extract_final_key(field_path).lower()
-        
-        # CVV validation - MUST have field name context
-        if pattern_name == 'cvv':
-            cvv_field_indicators = ['cvv', 'cvc', 'cvn', 'cid', 'security', 'verification']
-            # Only consider it CVV if the field name suggests it
-            if not any(indicator in final_key for indicator in cvv_field_indicators):
-                return False
-            # Also check value is actually 3-4 digits only
-            if not re.match(r'^\d{3,4}$', value_str):
-                return False
-        
-        # Phone validation - enhance context checking
-        elif pattern_name == 'phone':
-            phone_field_indicators = ['phone', 'tel', 'mobile', 'cell', 'msisdn', 'number']
-            # Must have phone-related field name
-            if not any(indicator in final_key for indicator in phone_field_indicators):
-                return False
-            # Value should look like an actual phone number
-            if not re.match(r'^[\+]?[\d\s\-\(\)]{7,15}$', value_str):
-                return False
-        
-        # Currency validation - improve patterns
-        elif pattern_name in ['currency', 'currency_with_symbol', 'currency_formatted']:
-            currency_field_indicators = ['amount', 'balance', 'cost', 'price', 'fee', 'charge', 'payment', 'bill']
-            # Must have currency-related field name
-            if not any(indicator in final_key for indicator in currency_field_indicators):
-                return False
-            # Must actually look like currency (has decimal or $ symbol)
-            if not re.match(r'^\$?\d+(\.\d{1,2})?$', value_str):
-                return False
-        
-        # Credit card validation
-        elif pattern_name == 'credit_card':
-            card_field_indicators = ['card', 'credit', 'debit', 'pan', 'account']
-            if not any(indicator in final_key for indicator in card_field_indicators):
-                return False
-        
-        # Email validation
-        elif pattern_name == 'email':
-            email_field_indicators = ['email', 'mail', 'contact']
-            if not any(indicator in final_key for indicator in email_field_indicators):
-                return False
-        
-        return True
-    
-    def is_personal_date_field(self, field_name: str) -> bool:
-        """Check if field name indicates a personal date (like date of birth)"""
-        field_lower = field_name.lower()
-        
-        # Personal date indicators - very specific to avoid false positives
-        personal_date_keywords = [
-            'dob', 'dateofbirth', 'birthdate', 'birthday', 'bday', 'birth', 'born'
-        ]
-        
-        return any(keyword in field_lower for keyword in personal_date_keywords)
-    
-    def has_datetime_values(self, values: List[Any]) -> bool:
-        """Check if values contain date-time stamps (not just dates) - FIXED VERSION"""
-        if not values:
-            return False
-        
-        # Patterns for datetime (with time components) - MORE PRECISE
-        datetime_patterns = [
-            re.compile(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'),        # ISO format with time: 2024-08-07T14:30:00
-            re.compile(r'\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}'),      # Date with space and time: 2024-08-07 14:30:00
-            re.compile(r'\d{2}/\d{2}/\d{4}\s+\d{1,2}:\d{2}'),          # US format with time: 08/07/2024 2:30
-            re.compile(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$'),     # ISO with timezone: 2024-08-07T14:30:00Z
-            re.compile(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$'),  # ISO with offset: 2024-08-07T14:30:00+05:00
-        ]
-        
-        # Unix timestamp patterns - BE MORE SPECIFIC
-        unix_timestamp_patterns = [
-            re.compile(r'^\d{13}$'),          # Milliseconds timestamp (exactly 13 digits)
-            re.compile(r'^\d{16,}$'),         # Microseconds or nanoseconds (16+ digits)
-        ]
-        
-        for value in values[:3]:  # Check first few values
-            value_str = str(value).strip()
-            
-            # Check for datetime patterns first
-            for pattern in datetime_patterns:
-                if pattern.search(value_str):
-                    return True
-            
-            # Check for Unix timestamps - but be more careful
-            for pattern in unix_timestamp_patterns:
-                if pattern.match(value_str):
-                    # Additional validation for Unix timestamps
-                    try:
-                        timestamp_val = int(value_str)
-                        # Valid Unix timestamps should be within reasonable range
-                        # 2020-01-01 to 2030-12-31 in milliseconds
-                        if 1577836800000 <= timestamp_val <= 1924991999999:
-                            return True
-                    except ValueError:
-                        continue
-        
-        return False
-    
-    def is_sensitive_field_value(self, field_path: str, values: List[Any]) -> bool:
-        """Check if field contains sensitive data patterns that should override datetime exclusion"""
-        if not values:
-            return False
-        
-        final_key = self.extract_final_key(field_path).lower()
-        
-        # Fields that should ALWAYS be checked for sensitive patterns, even if they look like timestamps
-        sensitive_field_indicators = [
-            'imei', 'cardnumber', 'creditcard', 'debitcard', 'cvv', 'ssn', 'social',
-            'account', 'card', 'cc', 'pan', 'macaddress', 'mac', 'subscriber', 'msisdn'
-        ]
-        
-        # If field name suggests sensitive data, check the values
-        if any(indicator in final_key for indicator in sensitive_field_indicators):
-            for value in values[:3]:
-                value_str = str(value).strip()
-                
-                # Check for known sensitive patterns
-                sensitive_patterns = [
-                    re.compile(r'^\d{15}$'),                    # IMEI (15 digits)
-                    re.compile(r'^\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}$'),  # Credit card
-                    re.compile(r'^\d{3,4}$'),                   # CVV
-                    re.compile(r'^\d{3}-\d{2}-\d{4}$'),         # SSN
-                    re.compile(r'^[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}$'),  # MAC
-                    re.compile(r'^\d{10,20}$'),                 # Long account numbers
-                ]
-                
-                for pattern in sensitive_patterns:
-                    if pattern.match(value_str):
-                        return True
-        
-        return False
-
-    def is_non_personal_date_field(self, field_name: str) -> bool:
-        """Check if field name indicates a non-personal date (business/system dates) - FIXED VERSION"""
-        field_lower = field_name.lower()
-        
-        # IMPORTANT: Exclude name fields that might contain date-related words
-        name_field_indicators = [
-            'name', 'firstName', 'lastname', 'fullname', 'surname', 'givenname', 
-            'familyname', 'displayname', 'username', 'nickname'
-        ]
-        
-        # If it's a name field, it's NOT a date field regardless of containing "last"
-        if any(name_indicator in field_lower for name_indicator in name_field_indicators):
-            return False
-        
-        # IMPORTANT: Exclude other non-date fields that might contain date-related words
-        non_date_field_indicators = [
-            'password', 'pass', 'auth', 'token', 'key', 'secret', 'code',
-            'address', 'street', 'location', 'coordinate', 'phone', 'email',
-            'account', 'balance', 'amount', 'payment', 'card', 'credit'
-        ]
-        
-        # If it's clearly not a date-related field, return false
-        if any(indicator in field_lower for indicator in non_date_field_indicators):
-            return False
-        
-        # Non-personal date indicators - now more specific
-        non_personal_date_indicators = [
-            'effective', 'expiry', 'expire', 'expiration', 'valid', 'start', 'end',
-            'created', 'updated', 'modified', 'changed', 'next', 'plan',
-            'rate', 'service', 'activation', 'deactivation', 'suspension', 'resume',
-            'renewal', 'billing', 'cycle', 'period', 'due', 'payment', 'transaction',
-            'system', 'process', 'schedule', 'maintenance', 'upgrade', 'install',
-            'login', 'logout', 'access', 'session', 'request', 'response'
-        ]
-        
-        # Only check for date indicators if we've ruled out name fields
-        # AND require the word "date" or "time" to be present for stronger indication
-        has_date_indicator = any(indicator in field_lower for indicator in non_personal_date_indicators)
-        has_date_word = any(word in field_lower for word in ['date', 'time', 'timestamp'])
-        
-        # Must have both a date indicator AND a date-related word
-        return has_date_indicator and has_date_word
-
-    def is_uuid_field(self, values: List[Any]) -> bool:
-        """Check if field contains only UUID values"""
-        if not values:
-            return False
-        
-        # UUID patterns (various formats) - FIXED
-        uuid_patterns = [
-            re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE),  # Standard UUID
-            re.compile(r'^[0-9a-f]{32}$', re.IGNORECASE),  # UUID without dashes
-            re.compile(r'^[{]?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[}]?$', re.IGNORECASE)  # UUID with optional braces
-        ]
-
-        
-        # Check if ALL values are UUIDs
-        for value in values:
-            value_str = str(value).strip()
-            if not any(pattern.match(value_str) for pattern in uuid_patterns):
-                return False
-        
-        return True
-    
     def is_boolean_field(self, values: List[Any]) -> bool:
         """Check if field contains only boolean-type values"""
         if not values:
             return False
         
-        # Define all possible boolean values
         boolean_values = {
-            'true', 'false', 
-            'yes', 'no', 
-            'y', 'n',
-            '1', '0',
-            'on', 'off',
-            'enabled', 'disabled',
-            'active', 'inactive',
+            'true', 'false', 'yes', 'no', 'y', 'n', '1', '0',
+            'on', 'off', 'enabled', 'disabled', 'active', 'inactive',
             'valid', 'invalid'
         }
         
-        # Check if ALL values are boolean-type
         for value in values:
             value_str = str(value).strip().lower()
             if value_str not in boolean_values:
@@ -707,124 +630,83 @@ class TelecomBlacklistGenerator:
         
         return True
     
-    def is_classification_field(self, field_path: str, values: List[Any]) -> bool:
-        """Check if field is a classification/type field that contains data type names rather than actual data"""
-        final_key = self.extract_final_key(field_path).lower()
-        
-        # Classification field indicators
-        classification_indicators = [
-            'type', 'kind', 'category', 'class', 'classification', 'method',
-            'format', 'style', 'mode', 'variant', 'scheme', 'strategy'
-        ]
-        
-        # Check if field name suggests it's a classification field
-        is_classification_field = any(indicator in final_key for indicator in classification_indicators)
-        
-        if not is_classification_field:
+    def is_uuid_field(self, values: List[Any]) -> bool:
+        """Check if field contains only UUID values"""
+        if not values:
             return False
         
-        # Check if values are data type names/classifications rather than actual data
-        classification_values = {
-            # Identity types
-            'ssn', 'social', 'passport', 'license', 'driverlicense', 'nationalid',
-            # Payment types  
-            'credit', 'debit', 'visa', 'mastercard', 'amex', 'discover',
-            # Contact types
-            'email', 'phone', 'mobile', 'home', 'work', 'business',
-            # Address types
-            'billing', 'shipping', 'home', 'work', 'mailing',
-            # General types
-            'primary', 'secondary', 'temporary', 'permanent', 'preferred',
-            # Communication types
-            'sms', 'call', 'mail', 'notification',
-            # Document types
-            'pdf', 'doc', 'image', 'text', 'json', 'xml'
-        }
+        uuid_patterns = [
+            re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE),  # Standard UUID
+            re.compile(r'^[0-9a-f]{32}$', re.IGNORECASE),  # UUID without dashes
+            re.compile(r'^[{]?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[}]?$', re.IGNORECASE)  # UUID with optional braces
+        ]
         
-        # Check if ALL values are classification terms
         for value in values:
-            value_str = str(value).strip().lower()
-            if value_str not in classification_values:
+            value_str = str(value).strip()
+            if not any(pattern.match(value_str) for pattern in uuid_patterns):
                 return False
         
         return True
     
-    def apply_fuzzy_matching(self, field_name: str) -> str:
-        """Apply fuzzy matching to detect variations and abbreviations"""
-        field_lower = field_name.lower()
+    def has_datetime_values(self, values: List[Any]) -> bool:
+        """Check if values contain date-time stamps (not just dates)"""
+        if not values:
+            return False
         
-        # Direct fuzzy rule match
-        if field_lower in self.fuzzy_rules:
-            return self.fuzzy_rules[field_lower]
-        
-        # Compound word detection (camelCase)
-        if any(char.isupper() for char in field_name[1:]):
-            parts = re.findall(r'[A-Z]?[a-z]+|[A-Z]+(?=[A-Z]|$)', field_name)
-            for part in parts:
-                part_lower = part.lower()
-                if part_lower in ['date', 'birth', 'born'] and ('date' in parts[0].lower() or 'birth' in field_lower):
-                    return 'dateofbirth'
-                if part_lower in ['first', 'last'] and 'name' in field_lower:
-                    return 'name'
-        
-        # Vowel removal matching
-        consonants_only = re.sub(r'[aeiou]', '', field_lower)
-        vowel_mappings = {
-            'nm': 'name',
-            'phn': 'phone', 
-            'ml': 'email',
-            'ddr': 'address'
-        }
-        if consonants_only in vowel_mappings:
-            return vowel_mappings[consonants_only]
-        
-        return field_name
-    
-    def is_sensitive_code_field(self, field_name: str) -> bool:
-        """Check if a field ending in 'code' is actually sensitive data"""
-        field_lower = field_name.lower()
-        
-        # Patterns that indicate sensitive codes
-        sensitive_code_patterns = [
-            'zip', 'postal', 'area', 'country', 'region',  # Location codes
-            'security', 'verification', 'access', 'pin',    # Security codes  
-            'activation', 'confirmation', 'auth',           # Authentication codes
-            'cvv', 'cvc', 'cid',                           # Payment security codes
-            'tax', 'ssn', 'national',                      # Government codes
-            'pass', 'password', 'otp', 'mfa', 'lock'       # Authentication codes
+        datetime_patterns = [
+            re.compile(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'),
+            re.compile(r'\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}'),
+            re.compile(r'\d{2}/\d{2}/\d{4}\s+\d{1,2}:\d{2}'),
+            re.compile(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z'),
+            re.compile(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}'),
         ]
         
-        return any(pattern in field_lower for pattern in sensitive_code_patterns)
-
-    def intelligent_keyword_match(self, field_path: str) -> List[str]:
-        """Enhanced keyword matching with FIXED code/type filtering"""
-        final_key = self.extract_final_key(field_path).lower()
-        normalized_key = self.apply_fuzzy_matching(final_key)
+        unix_timestamp_patterns = [
+            re.compile(r'^\d{13}$'),  # Milliseconds
+            re.compile(r'^\d{16,}$'),  # Microseconds or nanoseconds
+        ]
         
-        # NEW: Check developer overrides first
-        if final_key in self.developer_overrides['manual_whitelist']:
-            return []  # Developer explicitly excluded this field
+        for value in values[:3]:
+            value_str = str(value).strip()
+            
+            for pattern in datetime_patterns:
+                if pattern.search(value_str):
+                    return True
+            
+            for pattern in unix_timestamp_patterns:
+                if pattern.match(value_str):
+                    try:
+                        timestamp_val = int(value_str)
+                        if 1577836800000 <= timestamp_val <= 1924991999999:
+                            return True
+                    except ValueError:
+                        continue
         
-        if final_key in self.developer_overrides['manual_blacklist']:
-            return ['DEVELOPER_MANUAL']  # Developer manually added this field
+        return False
+    
+    def is_personal_date_field(self, field_name: str) -> bool:
+        """Check if field name indicates a personal date (like date of birth)"""
+        field_lower = field_name.lower()
         
-        # ENHANCED CHECK: Skip if field has code/type suffix BUT not if it's sensitive
-        if self.has_code_or_type_suffix(final_key):
-            return []  # Don't blacklist classification fields
+        # Extract entity and field components
+        entity_prefix, clean_field, is_compound = self.extract_entity_and_field(field_lower)
         
-        categories = []
+        # Check both the full field and the clean field part
+        fields_to_check = [field_lower, clean_field] if is_compound else [field_lower]
         
-        for category, keywords in self.keywords.items():
-            # Check both original and normalized key
-            if any(keyword in final_key for keyword in keywords):
-                categories.append(category.upper())
-            elif any(keyword in normalized_key.lower() for keyword in keywords):
-                categories.append(category.upper())
+        personal_date_keywords = [
+            'dob', 'dateofbirth', 'birthdate', 'birthday', 'bday', 'birth', 'born',
+            'date_of_birth', 'birth_date', 'dateborn', 'date_born'
+        ]
         
-        return list(set(categories))
-
+        for field_to_check in fields_to_check:
+            if any(keyword in field_to_check for keyword in personal_date_keywords):
+                return True
+        
+        return False
+    
     def analyze_values(self, values: List[Any]) -> Dict[str, Any]:
-        """Enhanced value analysis with CONTEXT-AWARE pattern matching"""
+        """Enhanced value analysis with pattern matching"""
         results = {
             'patterns_found': [],
             'categories': [],
@@ -832,7 +714,6 @@ class TelecomBlacklistGenerator:
             'unique_values': []
         }
         
-        # Get unique values for display (remove duplicates)
         unique_values = list(dict.fromkeys([str(v) for v in values[:5]]))
         results['unique_values'] = unique_values
         
@@ -841,19 +722,16 @@ class TelecomBlacklistGenerator:
             
             for pattern_name, compiled_pattern in self.compiled_patterns.items():
                 if compiled_pattern.match(value_str):
-                    # ENHANCED CHECK: Skip date patterns if they contain time
+                    # Enhanced check: Skip date patterns if they contain time
                     if pattern_name.startswith(('date_')):
-                        # Check if this looks like a datetime (has time component)
                         if self.has_datetime_values([value_str]):
-                            continue  # Skip dates with time - not DOB
+                            continue
                     
                     results['patterns_found'].append(pattern_name)
                     
-                    # Map patterns to categories using configuration
                     if pattern_name in self.pattern_mappings:
                         results['categories'].extend(self.pattern_mappings[pattern_name])
         
-        # Remove duplicates and set confidence
         results['categories'] = list(set(results['categories']))
         results['patterns_found'] = list(set(results['patterns_found']))
         
@@ -861,137 +739,118 @@ class TelecomBlacklistGenerator:
             results['confidence'] = 'High'
         
         return results
-
-    def should_exclude(self, final_key: str) -> bool:
-        """Check if field should be excluded from blacklist"""
-        return final_key.lower() in self.exclusions
     
     def analyze_field(self, field_path: str, values: List[Any]):
-        """Enhanced field analysis with FIXED date and code/type filtering"""
+        """Enhanced field analysis with exact matching and entity prefix support"""
         final_key = self.extract_final_key(field_path)
         category = self.get_field_category(field_path)
         
         if category == 'unknown':
             return
         
-    def analyze_field(self, field_path: str, values: List[Any]):
-        """Enhanced field analysis with FIXED date and code/type filtering"""
-        final_key = self.extract_final_key(field_path)
-        category = self.get_field_category(field_path)
-        
-        if category == 'unknown':
-            return
-        
-        # NEW: Check developer overrides FIRST (before any exclusions)
+        # Check developer overrides first
         if final_key in self.developer_overrides['manual_whitelist']:
             self.excluded_fields.append({
                 'field_path': field_path,
                 'final_key': final_key,
-                'reason': '👨‍💻 Developer manually excluded this field (via developer_overrides)'
+                'category': category,
+                'reason': '👨‍💻 Developer manually excluded this field',
+                'unique_values': [str(v) for v in values[:5]] if values else [],
+                'match_type': 'manual_whitelist'
             })
             return
         
-        # NEW: Check if developer manually added to blacklist
+        # Check if developer manually added to blacklist
         developer_manual = final_key in self.developer_overrides['manual_blacklist']
         
         if developer_manual:
-            print(f"🎯 Developer override detected: '{final_key}' manually added to blacklist")
+            print(f"🎯 Developer override: '{final_key}' manually blacklisted")
             
-            # Force blacklist this field regardless of other rules
             analysis_result = {
                 'field_path': field_path,
                 'final_key': final_key,
                 'category': category,
                 'blacklisted': True,
-                'reasons': [f"👨‍💻 Developer manually added '{final_key}' to blacklist (via developer_overrides)"],
+                'reasons': [f"👨‍💻 Developer manually added '{final_key}' to blacklist"],
                 'categories_detected': ['DEVELOPER_MANUAL'],
                 'unique_values': [str(v) for v in values[:5]] if values else [],
                 'confidence': 'High',
-                'fuzzy_match': None,
+                'exact_match': True,
+                'entity_prefix': None,
                 'key_based': True,
                 'value_based': False,
-                'developer_manual': True
+                'developer_manual': True,
+                'match_type': 'exact_match'
             }
             
-            # Add to appropriate blacklist
             if category == 'headers':
                 self.headers_blacklist.add(final_key)
-                print(f"🔒 Added '{final_key}' to headers blacklist (category: {category})")
             elif category in ['request', 'response']:
                 self.payload_blacklist.add(final_key)
-                print(f"🔒 Added '{final_key}' to payload blacklist (category: {category})")
             
-            self.detailed_analysis.append(analysis_result)
+            self.exact_match_blacklisted.append(analysis_result)
             return
         
-        # Continue with normal exclusion checks only if NOT developer manual
-        # Check exclusions
+        # Standard exclusion checks
         if self.should_exclude(final_key):
             self.excluded_fields.append({
                 'field_path': field_path,
                 'final_key': final_key,
-                'reason': 'Excluded - Common non-sensitive field'
+                'category': category,
+                'reason': 'Excluded - Common non-sensitive field',
+                'unique_values': [str(v) for v in values[:5]] if values else [],
+                'match_type': 'exclusion'
             })
             return
         
-        # ENHANCED CHECK: Skip code/type fields
         if self.has_code_or_type_suffix(final_key):
             self.excluded_fields.append({
                 'field_path': field_path,
                 'final_key': final_key,
-                'reason': 'Excluded - Code/Type field (classification, not sensitive data)'
+                'category': category,
+                'reason': 'Excluded - Code/Type field (classification, not sensitive data)',
+                'unique_values': [str(v) for v in values[:5]] if values else [],
+                'match_type': 'exclusion'
             })
             return
         
-        # ENHANCED CHECK: Skip boolean fields
         if self.is_boolean_field(values):
             self.excluded_fields.append({
                 'field_path': field_path,
                 'final_key': final_key,
-                'reason': 'Excluded - Boolean field (True/False/Y/N values)'
+                'category': category,
+                'reason': 'Excluded - Boolean field (True/False values)',
+                'unique_values': [str(v) for v in values[:5]] if values else [],
+                'match_type': 'exclusion'
             })
             return
         
-        # ENHANCED CHECK: Skip UUID fields
         if self.is_uuid_field(values):
             self.excluded_fields.append({
                 'field_path': field_path,
                 'final_key': final_key,
-                'reason': 'Excluded - UUID field (system-generated identifiers)'
+                'category': category,
+                'reason': 'Excluded - UUID field (system identifiers)',
+                'unique_values': [str(v) for v in values[:5]] if values else [],
+                'match_type': 'exclusion'
             })
             return
         
-        # ENHANCED CHECK: Skip classification fields
-        if self.is_classification_field(field_path, values):
-            self.excluded_fields.append({
-                'field_path': field_path,
-                'final_key': final_key,
-                'reason': 'Excluded - Classification field (contains type names, not actual data)'
-            })
-            return
-        
-        # ENHANCED CHECK: Skip non-personal dates
-        if not self.is_personal_date_field(final_key) and self.is_non_personal_date_field(final_key):
-            self.excluded_fields.append({
-                'field_path': field_path,
-                'final_key': final_key,
-                'reason': 'Excluded - Non-personal date field (business/system date)'
-            })
-            return
-        
-        # FIXED LOGIC: Skip fields with datetime values BUT only if they're not sensitive fields
+        # Enhanced datetime exclusion (but not for personal dates)
         if values and self.has_datetime_values(values) and not self.is_personal_date_field(final_key):
-            # BUT: Don't exclude if this field contains sensitive data (like IMEI, card numbers, etc.)
-            if not self.is_sensitive_field_value(field_path, values):
-                self.excluded_fields.append({
-                    'field_path': field_path,
-                    'final_key': final_key,
-                    'reason': 'Excluded - Contains timestamps/datetime (not DOB)'
-                })
-                return
-            # If it IS sensitive, continue with normal analysis (don't exclude)
+            self.excluded_fields.append({
+                'field_path': field_path,
+                'final_key': final_key,
+                'category': category,
+                'reason': 'Excluded - Contains timestamps/datetime (not personal dates)',
+                'unique_values': [str(v) for v in values[:5]] if values else [],
+                'match_type': 'exclusion'
+            })
+            return
         
-        # Initialize analysis result for normal fields
+        # Initialize analysis result
+        entity_prefix, clean_field, is_compound = self.extract_entity_and_field(final_key)
+        
         analysis_result = {
             'field_path': field_path,
             'final_key': final_key,
@@ -999,32 +858,39 @@ class TelecomBlacklistGenerator:
             'blacklisted': False,
             'reasons': [],
             'categories_detected': [],
-            'unique_values': [],
+            'unique_values': [str(v) for v in values[:5]] if values else [],
             'confidence': 'Low',
-            'fuzzy_match': None,
+            'exact_match': None,
+            'entity_prefix': entity_prefix,
+            'is_compound': is_compound,
+            'clean_field': clean_field,
             'key_based': False,
             'value_based': False,
-            'developer_manual': False
+            'developer_manual': False,
+            'match_type': 'no_match'
         }
         
-        # Key-based analysis (with enhanced filtering)
-        key_categories = self.intelligent_keyword_match(field_path)
+        # Enhanced exact keyword matching
+        key_categories = self.exact_keyword_match(field_path)
         if key_categories:
             analysis_result['key_based'] = True
             analysis_result['categories_detected'].extend(key_categories)
+            analysis_result['exact_match'] = True
+            analysis_result['match_type'] = 'exact_match'
             
             if 'DEVELOPER_MANUAL' in key_categories:
-                analysis_result['reasons'].append(f"👨‍💻 Developer manually added '{final_key}' to blacklist (via developer_overrides)")
+                analysis_result['reasons'].append(f"👨‍💻 Developer manually added '{final_key}' to blacklist")
             else:
-                # Check if fuzzy matching was applied
-                normalized_key = self.apply_fuzzy_matching(final_key.lower())
-                if normalized_key != final_key.lower():
-                    analysis_result['fuzzy_match'] = normalized_key
-                    analysis_result['reasons'].append(f"Key-based: '{final_key}' intelligently matched to '{normalized_key}' → {', '.join(key_categories)}")
+                if is_compound:
+                    analysis_result['reasons'].append(
+                        f"🎯 EXACT MATCH: '{final_key}' = entity '{entity_prefix}' + field '{clean_field}' → {', '.join(key_categories)}"
+                    )
                 else:
-                    analysis_result['reasons'].append(f"Key-based: '{final_key}' contains sensitive keywords → {', '.join(key_categories)}")
+                    analysis_result['reasons'].append(
+                        f"🎯 EXACT MATCH: '{final_key}' exactly matches sensitive keywords → {', '.join(key_categories)}"
+                    )
         
-        # Value-based analysis (with enhanced filtering)
+        # Value-based analysis
         if values:
             value_analysis = self.analyze_values(values)
             analysis_result['unique_values'] = value_analysis['unique_values']
@@ -1032,511 +898,1054 @@ class TelecomBlacklistGenerator:
             if value_analysis['categories']:
                 analysis_result['value_based'] = True
                 analysis_result['categories_detected'].extend(value_analysis['categories'])
-                analysis_result['reasons'].append(f"Value-based: Values match sensitive patterns {value_analysis['patterns_found']} → {', '.join(value_analysis['categories'])}")
+                analysis_result['reasons'].append(
+                    f"🔍 VALUE MATCH: Values match patterns {value_analysis['patterns_found']} → {', '.join(value_analysis['categories'])}"
+                )
                 analysis_result['confidence'] = value_analysis['confidence']
+                if not analysis_result['key_based']:
+                    analysis_result['match_type'] = 'value_based'
         
-        # Remove duplicates from categories
+        # Remove duplicates
         analysis_result['categories_detected'] = list(set(analysis_result['categories_detected']))
         
         # Determine if should be blacklisted
-        analysis_result['blacklisted'] = bool(analysis_result['categories_detected']) or developer_manual
+        analysis_result['blacklisted'] = bool(analysis_result['categories_detected'])
         
         if not analysis_result['blacklisted']:
-            analysis_result['reasons'].append("No sensitive patterns detected")
+            analysis_result['reasons'].append("❌ No exact matches or sensitive patterns detected")
+            analysis_result['match_type'] = 'safe'
         
-        # Add to appropriate blacklist - FIXED LOGIC
+        # Add to appropriate blacklist and category
         if analysis_result['blacklisted']:
             if category == 'headers':
                 self.headers_blacklist.add(final_key)
-                print(f"🔒 Added '{final_key}' to headers blacklist (category: {category})")
+                print(f"🔒 Added '{final_key}' to headers blacklist")
             elif category in ['request', 'response']:
                 self.payload_blacklist.add(final_key)
-                print(f"🔒 Added '{final_key}' to payload blacklist (category: {category})")
+                print(f"🔒 Added '{final_key}' to payload blacklist")
+            
+            # Categorize by match type
+            if analysis_result['key_based']:
+                self.exact_match_blacklisted.append(analysis_result)
+            else:
+                self.value_based_blacklisted.append(analysis_result)
+        else:
+            self.safe_fields.append(analysis_result)
+    
+    def generate_properties(self, output_file: str = 'enhanced_application.properties'):
+        """Generate enhanced application.properties file with exact matches only"""
+        # Only include exact matches in the final configuration
+        exact_match_payload = set()
+        exact_match_headers = set()
         
-        self.detailed_analysis.append(analysis_result)
-
-    def generate_properties(self, output_file: str = 'application.properties'):
-        """Generate consolidated application.properties file"""
-        content = f"""# Telecom API Blacklist Configuration - INTERACTIVE VERSION
+        for result in self.exact_match_blacklisted:
+            final_key = result['final_key']
+            if result['category'] == 'headers':
+                exact_match_headers.add(final_key)
+            elif result['category'] in ['request', 'response']:
+                exact_match_payload.add(final_key)
+        
+        content = f"""# Enhanced Telecom API Blacklist Configuration - EXACT MATCHING ONLY
 # Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 # Pattern source: {self.patterns_file}
-# Total fields analyzed: {len(self.detailed_analysis)}
-# Fields blacklisted: {len([r for r in self.detailed_analysis if r['blacklisted']])}
-# Fields excluded: {len(self.excluded_fields)}
-# Developer manual additions: {len(self.developer_overrides['manual_blacklist'])}
-# Developer manual exclusions: {len(self.developer_overrides['manual_whitelist'])}
+# Total fields analyzed: {len(self.exact_match_blacklisted) + len(self.value_based_blacklisted) + len(self.safe_fields)}
+# Exact match fields blacklisted: {len(self.exact_match_blacklisted)}
+# Value-based fields found: {len(self.value_based_blacklisted)}
+# Safe fields: {len(self.safe_fields)}
+# Smart exclusions: {len(self.excluded_fields)}
 
-# ENHANCED FILTERING APPLIED:
-# ✅ Excluded code/type fields (e.g., ratePlanCode, subscriberType)
-# ✅ Excluded non-personal dates (e.g., ratePlanEffectiveDate)
-# ✅ Excluded datetime stamps (dates with time components)
-# ✅ Excluded boolean fields (true/false values)
-# ✅ Excluded UUID fields (system identifiers)
-# ✅ Only personal dates (DOB) are considered sensitive
-# 🎯 Developer overrides applied for custom decisions
+# 🎯 CONFIGURATION INCLUDES EXACT MATCHES ONLY
+# ✅ Exact string matching (whole word boundaries) - NO FALSE POSITIVES
+# ✅ Entity prefix detection (customerAge, personName, userEmail, etc.)
+# ✅ Developer manual overrides
+# ❌ Value-based matches excluded from final config (require manual review)
 
-# CONSOLIDATED BLACKLISTS (duplicates removed)
-payload.blacklist={','.join(sorted(self.payload_blacklist))}
-headers.blacklist={','.join(sorted(self.headers_blacklist))}
+# EXACT MATCH BLACKLISTS ONLY
+payload.blacklist={','.join(sorted(exact_match_payload))}
+headers.blacklist={','.join(sorted(exact_match_headers))}
 """
         
         with open(output_file, 'w') as f:
             f.write(content)
         
-        print(f"📄 Interactive properties file generated: {output_file}")
+        print(f"📄 Enhanced properties file generated: {output_file}")
+        print(f"📊 Exact matches only: {len(exact_match_payload)} payload + {len(exact_match_headers)} headers")
         return output_file
     
-    def generate_detailed_table_html(self, output_file: str = 'blacklist_detailed_table.html'):
-        """Generate enhanced interactive HTML table with Add/Remove buttons"""
+    def save_developer_overrides(self, output_file: str = None):
+        """Save current developer overrides to JSON file"""
+        if output_file is None:
+            output_file = self.developer_overrides_file
         
-        blacklisted_fields = [r for r in self.detailed_analysis if r['blacklisted']]
-        not_blacklisted_fields = [r for r in self.detailed_analysis if not r['blacklisted']]
-        excluded_count = len(self.excluded_fields)
-        fuzzy_matched_fields = [r for r in blacklisted_fields if r.get('fuzzy_match')]
-        key_based_fields = [r for r in blacklisted_fields if r.get('key_based')]
-        value_based_fields = [r for r in blacklisted_fields if r.get('value_based')]
+        overrides_data = {
+            "manual_blacklist": list(self.developer_overrides['manual_blacklist']),
+            "manual_whitelist": list(self.developer_overrides['manual_whitelist']),
+            "last_updated": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            "description": "Developer overrides for blacklist generation"
+        }
+        
+        with open(output_file, 'w') as f:
+            json.dump(overrides_data, f, indent=2)
+        
+        print(f"💾 Developer overrides saved to: {output_file}")
+        return output_file
+    
+    def generate_interactive_html_report(self, output_file: str = 'interactive_blacklist_report.html'):
+        """Generate interactive HTML report with tabbed interface and Add/Remove buttons"""
         
         html_content = f"""
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Interactive Telecom API Blacklist Analysis</title>
+    <title>Enhanced Telecom API Blacklist Analysis - Developer Interface</title>
     <style>
         body {{ 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            margin: 20px; 
+            margin: 0; 
             line-height: 1.6; 
-            background-color: #f5f5f5;
+            background-color: #f5f7fa;
         }}
         .container {{ 
-            max-width: 1400px; 
+            max-width: 1600px; 
             margin: 0 auto; 
             background: white; 
-            padding: 20px; 
-            border-radius: 8px; 
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            min-height: 100vh;
         }}
         .header {{ 
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
             color: white; 
             padding: 30px; 
-            border-radius: 8px; 
-            margin-bottom: 30px;
             text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }}
-        .interactive-notice {{
-            background: #e1f5fe; 
-            color: #01579b; 
-            padding: 15px; 
-            border-radius: 8px; 
-            margin: 20px 0;
-            border-left: 4px solid #0288d1;
+        .header h1 {{ margin: 0; font-size: 2.2em; }}
+        .header h2 {{ margin: 10px 0 0 0; font-size: 1.3em; opacity: 0.9; }}
+        
+        .stats-bar {{
+            background: #2c3e50;
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 20px;
         }}
-        .stats {{ 
-            display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
-            gap: 15px; 
-            margin: 20px 0;
-        }}
-        .stat-card {{ 
-            background: white; 
-            padding: 20px; 
-            border-radius: 8px; 
-            text-align: center; 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            border-left: 4px solid #007bff;
+        .stat-item {{
+            text-align: center;
+            min-width: 120px;
         }}
         .stat-number {{ 
-            font-size: 2em; 
+            font-size: 1.8em; 
             font-weight: bold; 
-            color: #007bff; 
+            color: #3498db;
         }}
-        .exclusions-section {{
-            background: #f8f9fa; 
-            padding: 20px; 
-            border-radius: 8px; 
-            margin: 20px 0;
-            border-left: 4px solid #28a745;
+        .stat-label {{ 
+            font-size: 0.9em; 
+            opacity: 0.8;
         }}
-        .filter-controls {{ 
-            background: #f8f9fa; 
-            padding: 15px; 
-            border-radius: 8px; 
-            margin: 20px 0;
-            border: 1px solid #dee2e6;
+        
+        .tab-container {{
+            background: #ecf0f1;
+            padding: 0;
         }}
-        .btn {{ 
-            background: #007bff; 
-            color: white; 
-            border: none; 
-            padding: 8px 16px; 
-            border-radius: 4px; 
-            cursor: pointer; 
-            margin: 2px;
+        .tabs {{
+            display: flex;
+            background: #34495e;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }}
-        .btn:hover {{ background: #0056b3; }}
-        .btn.active {{ background: #28a745; }}
-        .btn-remove {{ 
-            background: #dc3545; 
-            color: white; 
-            border: none; 
-            padding: 6px 12px; 
-            border-radius: 4px; 
-            cursor: pointer; 
-            font-size: 0.8em;
+        .tab {{
+            flex: 1;
+            text-align: center;
         }}
-        .btn-remove:hover {{ background: #c82333; }}
-        .btn-add {{ 
-            background: #28a745; 
-            color: white; 
-            border: none; 
-            padding: 6px 12px; 
-            border-radius: 4px; 
-            cursor: pointer; 
-            font-size: 0.8em;
+        .tab button {{
+            width: 100%;
+            padding: 20px 15px;
+            background: transparent;
+            border: none;
+            color: #bdc3c7;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
         }}
-        .btn-add:hover {{ background: #218838; }}
-        .btn-disabled {{ 
-            background: #6c757d; 
-            cursor: not-allowed; 
+        .tab button:hover {{
+            background: #2c3e50;
+            color: white;
         }}
+        .tab button.active {{
+            background: #3498db;
+            color: white;
+            border-bottom-color: #e74c3c;
+        }}
+        
+        .tab-content {{
+            display: none;
+            padding: 30px;
+            min-height: 600px;
+        }}
+        .tab-content.active {{
+            display: block;
+        }}
+        
+        .section-header {{
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            padding: 20px;
+            margin: -30px -30px 30px -30px;
+            text-align: center;
+            font-size: 1.4em;
+            font-weight: bold;
+        }}
+        .section-header.value-based {{
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+        }}
+        .section-header.excluded {{
+            background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+        }}
+        .section-header.safe {{
+            background: linear-gradient(135deg, #16a085 0%, #138d75 100%);
+        }}
+        
         table {{ 
             width: 100%; 
             border-collapse: collapse; 
-            margin: 0; 
+            margin: 20px 0; 
             background: white;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
         }}
         th {{ 
-            background-color: #495057; 
+            background: #34495e;
             color: white; 
             padding: 15px 12px; 
             text-align: left; 
             font-weight: 600;
-            border-bottom: 2px solid #dee2e6;
+            position: sticky;
+            top: 0;
+            z-index: 10;
         }}
         td {{ 
             padding: 12px; 
-            border-bottom: 1px solid #dee2e6; 
+            border-bottom: 1px solid #ecf0f1; 
             vertical-align: top;
         }}
         tr:hover {{ 
             background-color: #f8f9fa; 
         }}
-        .field-path {{ 
-            font-family: 'Courier New', monospace; 
-            background: #e9ecef; 
-            padding: 4px 8px; 
-            border-radius: 4px;
-            font-size: 0.9em;
-            word-break: break-word;
+        
+        .field-info {{
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
         }}
-        .final-key {{ 
+        .field-name {{ 
             font-weight: bold; 
-            color: #495057;
+            color: #2c3e50;
             font-size: 1.1em;
         }}
-        .values {{ 
+        .field-path {{ 
             font-family: 'Courier New', monospace; 
-            background: #f8f9fa; 
+            background: #ecf0f1; 
+            padding: 4px 8px; 
+            border-radius: 4px;
+            font-size: 0.85em;
+            color: #7f8c8d;
+        }}
+        .field-category {{
+            font-size: 0.8em;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 500;
+            display: inline-block;
+            margin-top: 3px;
+        }}
+        .field-category.headers {{ background: #e8f5e9; color: #2e7d32; }}
+        .field-category.request {{ background: #e3f2fd; color: #1565c0; }}
+        .field-category.response {{ background: #fce4ec; color: #c2185b; }}
+        
+        .match-indicators {{
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+            margin-top: 5px;
+        }}
+        .exact-match-indicator {{ 
+            background: #27ae60; 
+            color: white; 
+            padding: 2px 6px; 
+            border-radius: 12px; 
+            font-size: 0.7em; 
+            font-weight: bold;
+        }}
+        .compound-indicator {{ 
+            background: #f39c12; 
+            color: white; 
+            padding: 2px 6px; 
+            border-radius: 12px; 
+            font-size: 0.7em; 
+            font-weight: bold;
+        }}
+        .value-match-indicator {{ 
+            background: #3498db; 
+            color: white; 
+            padding: 2px 6px; 
+            border-radius: 12px; 
+            font-size: 0.7em; 
+            font-weight: bold;
+        }}
+        
+        .entity-info {{ 
+            background: #fff3e0; 
             padding: 8px; 
             border-radius: 4px; 
-            max-height: 100px; 
-            overflow-y: auto;
+            margin-top: 5px;
             font-size: 0.9em;
-            word-break: break-word;
+            color: #e65100;
+            border-left: 3px solid #ff9800;
         }}
-        .reason {{ 
-            line-height: 1.5;
+        
+        .sample-values {{
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            background: #f8f9fa;
+            padding: 8px;
+            border-radius: 4px;
+            max-height: 80px;
+            overflow-y: auto;
         }}
-        .blacklisted {{ 
-            background-color: #fff5f5; 
-            border-left: 4px solid #f56565;
+        .sample-values .value {{
+            display: block;
+            padding: 2px 0;
+            color: #495057;
         }}
-        .not-blacklisted {{ 
-            background-color: #f0fff4; 
-            border-left: 4px solid #48bb78;
-        }}
-        .fuzzy-indicator {{ 
-            background: #3182ce; 
-            color: white; 
-            padding: 2px 6px; 
-            border-radius: 12px; 
-            font-size: 0.7em; 
-            margin-left: 8px;
-        }}
-        .key-based-indicator {{ 
-            background: #e53e3e; 
-            color: white; 
-            padding: 2px 6px; 
-            border-radius: 12px; 
-            font-size: 0.7em; 
-            margin-left: 4px;
-        }}
-        .value-based-indicator {{ 
-            background: #3182ce; 
-            color: white; 
-            padding: 2px 6px; 
-            border-radius: 12px; 
-            font-size: 0.7em; 
-            margin-left: 4px;
-        }}
-        .manual-indicator {{ 
-            background: #ff6b35; 
-            color: white; 
-            padding: 2px 6px; 
-            border-radius: 12px; 
-            font-size: 0.7em; 
-            margin-left: 4px;
+        
+        .category-tags {{
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
         }}
         .category-tag {{ 
-            background: #e2e8f0; 
-            color: #2d3748; 
-            padding: 2px 8px; 
+            background: #e9ecef; 
+            color: #495057; 
+            padding: 3px 8px; 
             border-radius: 12px; 
             font-size: 0.8em; 
+            font-weight: 500;
+        }}
+        .category-tag.spi {{ background: #ffebee; color: #c62828; }}
+        .category-tag.cpni {{ background: #fff3e0; color: #ef6c00; }}
+        .category-tag.rpi {{ background: #f3e5f5; color: #7b1fa2; }}
+        .category-tag.cso {{ background: #e8f5e9; color: #2e7d32; }}
+        .category-tag.pci {{ background: #ffebee; color: #c62828; }}
+        
+        .action-column {{
+            text-align: center;
+            min-width: 120px;
+        }}
+        .btn {{
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
             margin: 2px;
-            display: inline-block;
         }}
-        .spi {{ background: #fed7d7; color: #742a2a; }}
-        .cpni {{ background: #feebc8; color: #744210; }}
-        .rpi {{ background: #e9d8fd; color: #44337a; }}
-        .cso {{ background: #bee3f8; color: #2a4365; }}
-        .pci {{ background: #fed7d7; color: #742a2a; }}
-        .config-section {{
-            background: #f8f9fa; 
-            padding: 20px; 
-            border-radius: 8px; 
-            margin: 20px 0;
+        .btn-remove {{
+            background: #e74c3c;
+            color: white;
         }}
+        .btn-remove:hover {{
+            background: #c0392b;
+            transform: translateY(-1px);
+        }}
+        .btn-add {{
+            background: #27ae60;
+            color: white;
+        }}
+        .btn-add:hover {{
+            background: #229954;
+            transform: translateY(-1px);
+        }}
+        
+        .download-section {{
+            background: #2c3e50;
+            color: white;
+            padding: 30px;
+            margin: 30px -30px -30px -30px;
+            text-align: center;
+        }}
+        .btn-download {{
+            background: #3498db;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 10px;
+            transition: all 0.3s ease;
+        }}
+        .btn-download:hover {{
+            background: #2980b9;
+            transform: translateY(-2px);
+        }}
+        
         .config-output {{
-            background: #2d3748; 
-            color: #e2e8f0; 
-            padding: 15px; 
-            border-radius: 4px; 
-            overflow-x: auto;
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            border-radius: 8px;
             font-family: 'Courier New', monospace;
             white-space: pre-wrap;
+            margin: 20px 0;
+            font-size: 0.9em;
+            line-height: 1.4;
+        }}
+        
+        .search-box {{
+            width: 100%;
+            padding: 12px;
+            margin: 20px 0;
+            border: 2px solid #bdc3c7;
+            border-radius: 5px;
+            font-size: 1em;
+        }}
+        .search-box:focus {{
+            outline: none;
+            border-color: #3498db;
+        }}
+        
+        .table-container {{
+            max-height: 70vh;
+            overflow-y: auto;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }}
+        
+        .summary-card {{
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin: 20px 0;
+        }}
+        
+        .alert {{
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            border-left: 4px solid;
+        }}
+        .alert-info {{
+            background: #d1ecf1;
+            border-color: #17a2b8;
+            color: #0c5460;
+        }}
+        .alert-warning {{
+            background: #fff3cd;
+            border-color: #ffc107;
+            color: #856404;
+        }}
+        
+        @media (max-width: 768px) {{
+            .stats-bar {{
+                flex-direction: column;
+                text-align: center;
+            }}
+            .tabs {{
+                flex-direction: column;
+            }}
+            .tab-content {{
+                padding: 15px;
+            }}
+            table {{
+                font-size: 0.8em;
+            }}
         }}
     </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 Enhanced Telecom API Blacklist Analysis</h1>
+            <h2>Developer-Friendly Interface with Dynamic Field Management</h2>
+            <p>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        </div>
+
+        <div class="stats-bar">
+            <div class="stat-item">
+                <div class="stat-number">{len(self.exact_match_blacklisted)}</div>
+                <div class="stat-label">Exact Match</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">{len(self.value_based_blacklisted)}</div>
+                <div class="stat-label">Value-Based</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">{len(self.excluded_fields)}</div>
+                <div class="stat-label">Smart Exclusions</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">{len(self.safe_fields)}</div>
+                <div class="stat-label">Safe Fields</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">{len(self.exact_match_blacklisted) + len(self.value_based_blacklisted) + len(self.excluded_fields) + len(self.safe_fields)}</div>
+                <div class="stat-label">Total Fields</div>
+            </div>
+        </div>
+
+        <div class="tab-container">
+            <ul class="tabs">
+                <li class="tab">
+                    <button class="tab-button active" onclick="openTab(event, 'exact-match')">
+                        🎯 Exact Match Blacklisted ({len(self.exact_match_blacklisted)})
+                    </button>
+                </li>
+                <li class="tab">
+                    <button class="tab-button" onclick="openTab(event, 'value-based')">
+                        🔍 Value-Based Matches ({len(self.value_based_blacklisted)})
+                    </button>
+                </li>
+                <li class="tab">
+                    <button class="tab-button" onclick="openTab(event, 'excluded')">
+                        ✅ Smart Exclusions ({len(self.excluded_fields)})
+                    </button>
+                </li>
+                <li class="tab">
+                    <button class="tab-button" onclick="openTab(event, 'safe')">
+                        🛡️ Safe Fields ({len(self.safe_fields)})
+                    </button>
+                </li>
+            </ul>
+
+            <!-- Exact Match Blacklisted Tab -->
+            <div id="exact-match" class="tab-content active">
+                <div class="section-header">
+                    🎯 Exact Match Blacklisted Fields
+                    <div style="font-size: 0.8em; margin-top: 5px; opacity: 0.9;">
+                        These fields matched exact keywords and are included in the final configuration
+                    </div>
+                </div>
+                
+                <input type="text" class="search-box" placeholder="🔍 Search exact match fields..." 
+                       onkeyup="filterTable('exact-match-table', this.value)">
+                
+                <div class="table-container">
+                    <table id="exact-match-table">
+                        <thead>
+                            <tr>
+                                <th>Field Information</th>
+                                <th>Match Details</th>
+                                <th>Sample Values</th>
+                                <th>Categories</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>"""
+
+        # Generate Exact Match table rows
+        for result in self.exact_match_blacklisted:
+            field_name = result['final_key']
+            field_path = result['field_path']
+            category = result['category']
+            
+            # Field Information column
+            field_info = f"""
+                <div class="field-info">
+                    <div class="field-name">{field_name}</div>
+                    <div class="field-path">{field_path}</div>
+                    <div class="field-category {category}">{category.upper()}</div>
+                    <div class="match-indicators">
+                        <span class="exact-match-indicator">EXACT MATCH</span>"""
+            
+            if result.get('is_compound'):
+                field_info += f'<span class="compound-indicator">COMPOUND</span>'
+            
+            field_info += '</div>'
+            
+            if result.get('is_compound'):
+                field_info += f"""
+                    <div class="entity-info">
+                        Entity: <strong>{result.get('entity_prefix', 'N/A')}</strong> + 
+                        Field: <strong>{result.get('clean_field', 'N/A')}</strong>
+                    </div>"""
+            
+            field_info += '</div>'
+            
+            # Match Details column
+            match_details = '<br>'.join(result['reasons'])
+            
+            # Sample Values column
+            sample_values = ''
+            if result['unique_values']:
+                sample_values = '<div class="sample-values">'
+                for value in result['unique_values']:
+                    sample_values += f'<span class="value">{value}</span>'
+                sample_values += '</div>'
+            
+            # Categories column
+            categories = ''
+            if result['categories_detected']:
+                categories = '<div class="category-tags">'
+                for cat in result['categories_detected']:
+                    if cat != 'DEVELOPER_MANUAL':
+                        categories += f'<span class="category-tag {cat.lower()}">{cat}</span>'
+                categories += '</div>'
+            
+            html_content += f"""
+                            <tr data-field="{field_name}" data-category="{category}">
+                                <td>{field_info}</td>
+                                <td>{match_details}</td>
+                                <td>{sample_values}</td>
+                                <td>{categories}</td>
+                                <td class="action-column">
+                                    <button class="btn btn-remove" onclick="removeField('{field_name}', '{category}')">
+                                        🗑️ Remove
+                                    </button>
+                                </td>
+                            </tr>"""
+
+        html_content += """
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Value-Based Matches Tab -->
+            <div id="value-based" class="tab-content">
+                <div class="section-header value-based">
+                    🔍 Value-Based Matches
+                    <div style="font-size: 0.8em; margin-top: 5px; opacity: 0.9;">
+                        These fields matched value patterns but require manual review before adding to configuration
+                    </div>
+                </div>
+                
+                <input type="text" class="search-box" placeholder="🔍 Search value-based fields..." 
+                       onkeyup="filterTable('value-based-table', this.value)">
+                
+                <div class="table-container">
+                    <table id="value-based-table">
+                        <thead>
+                            <tr>
+                                <th>Field Information</th>
+                                <th>Match Details</th>
+                                <th>Sample Values</th>
+                                <th>Categories</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>"""
+
+        # Generate Value-Based table rows
+        for result in self.value_based_blacklisted:
+            field_name = result['final_key']
+            field_path = result['field_path']
+            category = result['category']
+            
+            # Field Information column
+            field_info = f"""
+                <div class="field-info">
+                    <div class="field-name">{field_name}</div>
+                    <div class="field-path">{field_path}</div>
+                    <div class="field-category {category}">{category.upper()}</div>
+                    <div class="match-indicators">
+                        <span class="value-match-indicator">VALUE MATCH</span>
+                    </div>
+                </div>"""
+            
+            # Match Details column
+            match_details = '<br>'.join(result['reasons'])
+            
+            # Sample Values column
+            sample_values = ''
+            if result['unique_values']:
+                sample_values = '<div class="sample-values">'
+                for value in result['unique_values']:
+                    sample_values += f'<span class="value">{value}</span>'
+                sample_values += '</div>'
+            
+            # Categories column
+            categories = ''
+            if result['categories_detected']:
+                categories = '<div class="category-tags">'
+                for cat in result['categories_detected']:
+                    categories += f'<span class="category-tag {cat.lower()}">{cat}</span>'
+                categories += '</div>'
+            
+            html_content += f"""
+                            <tr data-field="{field_name}" data-category="{category}">
+                                <td>{field_info}</td>
+                                <td>{match_details}</td>
+                                <td>{sample_values}</td>
+                                <td>{categories}</td>
+                                <td class="action-column">
+                                    <button class="btn btn-add" onclick="addField('{field_name}', '{category}')">
+                                        ➕ Add
+                                    </button>
+                                </td>
+                            </tr>"""
+
+        html_content += """
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Smart Exclusions Tab -->
+            <div id="excluded" class="tab-content">
+                <div class="section-header excluded">
+                    ✅ Smart Exclusions Applied
+                    <div style="font-size: 0.8em; margin-top: 5px; opacity: 0.9;">
+                        These fields were automatically excluded by smart logic
+                    </div>
+                </div>
+                
+                <input type="text" class="search-box" placeholder="🔍 Search excluded fields..." 
+                       onkeyup="filterTable('excluded-table', this.value)">
+                
+                <div class="table-container">
+                    <table id="excluded-table">
+                        <thead>
+                            <tr>
+                                <th>Field Information</th>
+                                <th>Exclusion Reason</th>
+                                <th>Sample Values</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>"""
+
+        # Generate Excluded fields table rows
+        for exclusion in self.excluded_fields:
+            field_name = exclusion['final_key']
+            field_path = exclusion['field_path']
+            category = exclusion.get('category', 'unknown')
+            
+            # Field Information column
+            field_info = f"""
+                <div class="field-info">
+                    <div class="field-name">{field_name}</div>
+                    <div class="field-path">{field_path}</div>
+                    <div class="field-category {category}">{category.upper()}</div>
+                </div>"""
+            
+            # Sample Values column
+            sample_values = ''
+            if exclusion.get('unique_values'):
+                sample_values = '<div class="sample-values">'
+                for value in exclusion['unique_values']:
+                    sample_values += f'<span class="value">{value}</span>'
+                sample_values += '</div>'
+            
+            html_content += f"""
+                            <tr data-field="{field_name}" data-category="{category}">
+                                <td>{field_info}</td>
+                                <td>{exclusion['reason']}</td>
+                                <td>{sample_values}</td>
+                                <td class="action-column">
+                                    <button class="btn btn-add" onclick="addField('{field_name}', '{category}')">
+                                        ➕ Add
+                                    </button>
+                                </td>
+                            </tr>"""
+
+        html_content += """
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Safe Fields Tab -->
+            <div id="safe" class="tab-content">
+                <div class="section-header safe">
+                    🛡️ Safe Fields
+                    <div style="font-size: 0.8em; margin-top: 5px; opacity: 0.9;">
+                        These fields showed no sensitive patterns and are considered safe
+                    </div>
+                </div>
+                
+                <input type="text" class="search-box" placeholder="🔍 Search safe fields..." 
+                       onkeyup="filterTable('safe-table', this.value)">
+                
+                <div class="table-container">
+                    <table id="safe-table">
+                        <thead>
+                            <tr>
+                                <th>Field Information</th>
+                                <th>Analysis Result</th>
+                                <th>Sample Values</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>"""
+
+        # Generate Safe fields table rows (show first 50 for performance)
+        for result in self.safe_fields[:50]:
+            field_name = result['final_key']
+            field_path = result['field_path']
+            category = result['category']
+            
+            # Field Information column
+            field_info = f"""
+                <div class="field-info">
+                    <div class="field-name">{field_name}</div>
+                    <div class="field-path">{field_path}</div>
+                    <div class="field-category {category}">{category.upper()}</div>
+                </div>"""
+            
+            # Analysis Result column
+            analysis_result = result['reasons'][0] if result['reasons'] else 'No sensitive patterns detected'
+            
+            # Sample Values column
+            sample_values = ''
+            if result['unique_values']:
+                sample_values = '<div class="sample-values">'
+                for value in result['unique_values']:
+                    sample_values += f'<span class="value">{value}</span>'
+                sample_values += '</div>'
+            
+            html_content += f"""
+                            <tr data-field="{field_name}" data-category="{category}">
+                                <td>{field_info}</td>
+                                <td>{analysis_result}</td>
+                                <td>{sample_values}</td>
+                                <td class="action-column">
+                                    <button class="btn btn-add" onclick="addField('{field_name}', '{category}')">
+                                        ➕ Add
+                                    </button>
+                                </td>
+                            </tr>"""
+
+        if len(self.safe_fields) > 50:
+            html_content += f"""
+                            <tr>
+                                <td colspan="4" style="text-align: center; font-style: italic; color: #666; padding: 20px;">
+                                    ... and {len(self.safe_fields) - 50} more safe fields
+                                </td>
+                            </tr>"""
+
+        # Generate exact match payload and headers for config
+        exact_match_payload = []
+        exact_match_headers = []
+        
+        for result in self.exact_match_blacklisted:
+            final_key = result['final_key']
+            if result['category'] == 'headers':
+                exact_match_headers.append(final_key)
+            elif result['category'] in ['request', 'response']:
+                exact_match_payload.append(final_key)
+
+        html_content += f"""
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="download-section">
+            <h3>📄 Configuration & Downloads</h3>
+            
+            <div class="alert alert-info">
+                <strong>Configuration Policy:</strong> Only exact match fields are included in the final configuration to prevent false positives. 
+                Value-based matches require manual review and can be added using the Add button.
+            </div>
+            
+            <div class="config-output">
+# EXACT MATCH BLACKLISTS ONLY - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+payload.blacklist={','.join(sorted(exact_match_payload))}
+headers.blacklist={','.join(sorted(exact_match_headers))}
+            </div>
+            
+            <button class="btn-download" onclick="downloadConfig()">
+                📋 Download Configuration (.properties)
+            </button>
+            <button class="btn-download" onclick="downloadOverrides()">
+                ⚙️ Download Developer Overrides (.json)
+            </button>
+            <button class="btn-download" onclick="downloadReport()">
+                📊 Download Full Report (.html)
+            </button>
+        </div>
+    </div>
+
     <script>
-        // Store current blacklist state
-        let currentPayloadBlacklist = new Set({json.dumps(list(self.payload_blacklist))});
-        let currentHeadersBlacklist = new Set({json.dumps(list(self.headers_blacklist))});
-        
-        function filterTable(show) {{
-            const blacklistedRows = document.querySelectorAll('.blacklisted');
-            const notBlacklistedRows = document.querySelectorAll('.not-blacklisted');
-            const buttons = document.querySelectorAll('.filter-btn');
+        // Developer overrides data
+        let developerOverrides = {{
+            manual_blacklist: [],
+            manual_whitelist: []
+        }};
+
+        // Current configuration data
+        let exactMatchPayload = {json.dumps(sorted(exact_match_payload))};
+        let exactMatchHeaders = {json.dumps(sorted(exact_match_headers))};
+
+        function openTab(evt, tabName) {{
+            var i, tabcontent, tabbuttons;
             
-            // Reset button states
-            buttons.forEach(btn => btn.classList.remove('active'));
-            
-            if (show === 'all') {{
-                blacklistedRows.forEach(row => row.style.display = '');
-                notBlacklistedRows.forEach(row => row.style.display = '');
-                document.querySelector('[onclick="filterTable(\\'all\\')"]').classList.add('active');
-            }} else if (show === 'blacklisted') {{
-                blacklistedRows.forEach(row => row.style.display = '');
-                notBlacklistedRows.forEach(row => row.style.display = 'none');
-                document.querySelector('[onclick="filterTable(\\'blacklisted\\')"]').classList.add('active');
-            }} else if (show === 'safe') {{
-                blacklistedRows.forEach(row => row.style.display = 'none');
-                notBlacklistedRows.forEach(row => row.style.display = '');
-                document.querySelector('[onclick="filterTable(\\'safe\\')"]').classList.add('active');
-            }}
-        }}
-        
-        function addToBlacklist(fieldName, category, button) {{
-            // Add to appropriate blacklist
-            if (category === 'headers') {{
-                currentHeadersBlacklist.add(fieldName);
-            }} else {{
-                currentPayloadBlacklist.add(fieldName);
+            // Hide all tab contents
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) {{
+                tabcontent[i].classList.remove("active");
             }}
             
-            // Update button and row
-            const row = button.closest('tr');
-            row.className = 'blacklisted';
-            
-            // Change button to remove
-            button.textContent = 'Remove';
-            button.className = 'btn-remove';
-            button.onclick = () => removeFromBlacklist(fieldName, category, button);
-            
-            // Update the first column to show it's blacklisted
-            const firstCell = row.cells[0];
-            firstCell.innerHTML = `<span class="final-key">${{fieldName}}</span><span class="manual-indicator">MANUAL</span>`;
-            
-            // Update configuration display
-            updateConfigDisplay();
-            
-            // Show notification
-            showNotification(`Added ${{fieldName}} to blacklist`, 'success');
-        }}
-        
-        function removeFromBlacklist(fieldName, category, button) {{
-            // Remove from appropriate blacklist
-            if (category === 'headers') {{
-                currentHeadersBlacklist.delete(fieldName);
-            }} else {{
-                currentPayloadBlacklist.delete(fieldName);
+            // Remove active class from all tab buttons
+            tabbuttons = document.getElementsByClassName("tab-button");
+            for (i = 0; i < tabbuttons.length; i++) {{
+                tabbuttons[i].classList.remove("active");
             }}
             
-            // Update button and row
-            const row = button.closest('tr');
-            row.className = 'not-blacklisted';
-            
-            // Change button to add
-            button.textContent = 'Add';
-            button.className = 'btn-add';
-            button.onclick = () => addToBlacklist(fieldName, category, button);
-            
-            // Update the first column to show it's safe
-            const firstCell = row.cells[0];
-            firstCell.innerHTML = '<span style="color: #28a745; font-weight: bold;">✓ SAFE</span>';
-            
-            // Update configuration display
-            updateConfigDisplay();
-            
-            // Show notification
-            showNotification(`Removed ${{fieldName}} from blacklist`, 'info');
+            // Show the selected tab and mark button as active
+            document.getElementById(tabName).classList.add("active");
+            evt.currentTarget.classList.add("active");
         }}
-        
+
+        function filterTable(tableId, searchValue) {{
+            const table = document.getElementById(tableId);
+            const rows = table.getElementsByTagName("tr");
+            const searchLower = searchValue.toLowerCase();
+            
+            for (let i = 1; i < rows.length; i++) {{ // Skip header row
+                const row = rows[i];
+                const cells = row.getElementsByTagName("td");
+                let found = false;
+                
+                for (let j = 0; j < cells.length; j++) {{
+                    if (cells[j].textContent.toLowerCase().includes(searchLower)) {{
+                        found = true;
+                        break;
+                    }}
+                }}
+                
+                row.style.display = found ? "" : "none";
+            }}
+        }}
+
+        function removeField(fieldName, category) {{
+            if (confirm(`Remove "${{fieldName}}" from blacklist?`)) {{
+                // Add to manual whitelist
+                if (!developerOverrides.manual_whitelist.includes(fieldName)) {{
+                    developerOverrides.manual_whitelist.push(fieldName);
+                }}
+                
+                // Remove from manual blacklist if present
+                const blacklistIndex = developerOverrides.manual_blacklist.indexOf(fieldName);
+                if (blacklistIndex > -1) {{
+                    developerOverrides.manual_blacklist.splice(blacklistIndex, 1);
+                }}
+                
+                // Remove from current configuration
+                if (category === 'headers') {{
+                    const index = exactMatchHeaders.indexOf(fieldName);
+                    if (index > -1) exactMatchHeaders.splice(index, 1);
+                }} else {{
+                    const index = exactMatchPayload.indexOf(fieldName);
+                    if (index > -1) exactMatchPayload.splice(index, 1);
+                }}
+                
+                // Update UI
+                updateConfigDisplay();
+                updateOverridesDisplay();
+                
+                // Hide the row or move it to another tab
+                const row = document.querySelector(`tr[data-field="${{fieldName}}"]`);
+                if (row) {{
+                    row.style.background = '#ffebee';
+                    row.style.opacity = '0.6';
+                    setTimeout(() => row.style.display = 'none', 1000);
+                }}
+                
+                alert(`"${{fieldName}}" removed from blacklist and added to developer whitelist.`);
+            }}
+        }}
+
+        function addField(fieldName, category) {{
+            if (confirm(`Add "${{fieldName}}" to blacklist?`)) {{
+                // Add to manual blacklist
+                if (!developerOverrides.manual_blacklist.includes(fieldName)) {{
+                    developerOverrides.manual_blacklist.push(fieldName);
+                }}
+                
+                // Remove from manual whitelist if present
+                const whitelistIndex = developerOverrides.manual_whitelist.indexOf(fieldName);
+                if (whitelistIndex > -1) {{
+                    developerOverrides.manual_whitelist.splice(whitelistIndex, 1);
+                }}
+                
+                // Add to current configuration
+                if (category === 'headers') {{
+                    if (!exactMatchHeaders.includes(fieldName)) {{
+                        exactMatchHeaders.push(fieldName);
+                        exactMatchHeaders.sort();
+                    }}
+                }} else {{
+                    if (!exactMatchPayload.includes(fieldName)) {{
+                        exactMatchPayload.push(fieldName);
+                        exactMatchPayload.sort();
+                    }}
+                }}
+                
+                // Update UI
+                updateConfigDisplay();
+                updateOverridesDisplay();
+                
+                // Highlight the row
+                const row = document.querySelector(`tr[data-field="${{fieldName}}"]`);
+                if (row) {{
+                    row.style.background = '#e8f5e9';
+                    row.style.opacity = '0.6';
+                    setTimeout(() => row.style.display = 'none', 1000);
+                }}
+                
+                alert(`"${{fieldName}}" added to blacklist and developer overrides.`);
+            }}
+        }}
+
         function updateConfigDisplay() {{
-            const configOutput = document.getElementById('config-output');
-            const payloadList = Array.from(currentPayloadBlacklist).sort().join(',');
-            const headersList = Array.from(currentHeadersBlacklist).sort().join(',');
-            
-            configOutput.textContent = `payload.blacklist=${{payloadList}}
-headers.blacklist=${{headersList}}`;
+            const configElement = document.querySelector('.config-output');
+            const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+            configElement.textContent = `# EXACT MATCH BLACKLISTS ONLY - ${{now}}
+payload.blacklist=${{exactMatchPayload.join(',')}}
+headers.blacklist=${{exactMatchHeaders.join(',')}}`;
         }}
-        
-        function showNotification(message, type) {{
-            // Create notification element
-            const notification = document.createElement('div');
-            notification.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                padding: 12px 20px;
-                border-radius: 4px;
-                color: white;
-                font-weight: bold;
-                z-index: 1000;
-                opacity: 0;
-                transition: opacity 0.3s ease;
-                background: ${{type === 'success' ? '#28a745' : type === 'info' ? '#17a2b8' : '#dc3545'}};
-            `;
-            notification.textContent = message;
-            
-            document.body.appendChild(notification);
-            
-            // Fade in
-            setTimeout(() => notification.style.opacity = '1', 10);
-            
-            // Remove after 3 seconds
-            setTimeout(() => {{
-                notification.style.opacity = '0';
-                setTimeout(() => document.body.removeChild(notification), 300);
-            }}, 3000);
+
+        function updateOverridesDisplay() {{
+            // Update stats if needed
+            console.log('Developer Overrides Updated:', developerOverrides);
         }}
-        
-        function exportConfiguration() {{
-            const payloadList = Array.from(currentPayloadBlacklist).sort().join(',');
-            const headersList = Array.from(currentHeadersBlacklist).sort().join(',');
-            
-            const config = `# Generated Configuration - ${{new Date().toISOString()}}
-payload.blacklist=${{payloadList}}
-headers.blacklist=${{headersList}}`;
-            
-            const blob = new Blob([config], {{ type: 'text/plain' }});
+
+        function downloadConfig() {{
+            const configContent = document.querySelector('.config-output').textContent;
+            const blob = new Blob([configContent], {{ type: 'text/plain' }});
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'application.properties';
+            a.download = 'enhanced_application.properties';
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            
-            showNotification('Configuration exported!', 'success');
         }}
-        
-        function saveDeveloperOverrides() {{
-            // Load existing overrides from developer_overrides.json if it exists
-            // For now, we'll work with current session data, but provide instructions
-            
-            // Collect all manually added/removed fields
-            const manualBlacklist = [];
-            const manualWhitelist = [];
-            
-            // Get original blacklists from Python analysis
-            const originalPayload = new Set({json.dumps(list(self.payload_blacklist))});
-            const originalHeaders = new Set({json.dumps(list(self.headers_blacklist))});
-            
-            // Compare current vs original to find manual changes
-            for (const field of currentPayloadBlacklist) {{
-                if (!originalPayload.has(field)) {{
-                    manualBlacklist.push(field);
-                }}
-            }}
-            for (const field of currentHeadersBlacklist) {{
-                if (!originalHeaders.has(field)) {{
-                    manualBlacklist.push(field);
-                }}
-            }}
-            
-            // Find manually removed fields
-            for (const field of originalPayload) {{
-                if (!currentPayloadBlacklist.has(field)) {{
-                    manualWhitelist.push(field);
-                }}
-            }}
-            for (const field of originalHeaders) {{
-                if (!currentHeadersBlacklist.has(field)) {{
-                    manualWhitelist.push(field);
-                }}
-            }}
-            
-            // Load existing developer overrides from the analysis (if any)
-            const existingManualBlacklist = {json.dumps(list(self.developer_overrides['manual_blacklist']))};
-            const existingManualWhitelist = {json.dumps(list(self.developer_overrides['manual_whitelist']))};
-            
-            // Merge with existing overrides (union)
-            const finalBlacklist = [...new Set([...existingManualBlacklist, ...manualBlacklist])].sort();
-            const finalWhitelist = [...new Set([...existingManualWhitelist, ...manualWhitelist])].sort();
-            
-            // Remove conflicts (whitelist takes precedence)
-            const cleanedBlacklist = finalBlacklist.filter(field => !finalWhitelist.includes(field));
-            
-            // Create enhanced override object with instructions
-            const overrides = {{
-                "_README": {{
-                    "description": "Developer Manual Overrides for Telecom API Blacklist Generator",
-                    "usage": [
-                        "1. Place this file as 'developer_overrides.json' in the same directory as your analysis script",
-                        "2. Re-run the blacklist analysis: python interactive_blacklist_generator.py data.json",
-                        "3. The tool will automatically apply these overrides during analysis",
-                        "4. Manual blacklist fields will always be included in the final blacklist",
-                        "5. Manual whitelist fields will always be excluded from the final blacklist",
-                        "6. You can edit this file manually to add/remove fields if needed"
-                    ],
-                    "generated": new Date().toISOString(),
-                    "version": "2.0"
-                }},
-                "manual_blacklist": cleanedBlacklist,
-                "manual_whitelist": finalWhitelist,
-                "metadata": {{
-                    "total_manual_additions": cleanedBlacklist.length,
-                    "total_manual_exclusions": finalWhitelist.length,
-                    "last_updated": new Date().toISOString(),
-                    "note": "Fields in manual_blacklist will always be blacklisted. Fields in manual_whitelist will never be blacklisted."
-                }}
+
+        function downloadOverrides() {{
+            const overridesData = {{
+                ...developerOverrides,
+                last_updated: new Date().toISOString().slice(0, 19).replace('T', ' '),
+                description: "Developer overrides for blacklist generation"
             }};
             
-            // Download as JSON file
-            const blob = new Blob([JSON.stringify(overrides, null, 2)], {{ type: 'application/json' }});
+            const blob = new Blob([JSON.stringify(overridesData, null, 2)], {{ type: 'application/json' }});
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -1545,225 +1954,26 @@ headers.blacklist=${{headersList}}`;
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            
-            showNotification('Developer overrides saved! Place file in project directory and re-run analysis.', 'success');
         }}
-        
-        // Initialize with all shown
-        window.onload = function() {{
-            filterTable('all');
-            updateConfigDisplay();
+
+        function downloadReport() {{
+            const blob = new Blob([document.documentElement.outerHTML], {{ type: 'text/html' }});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'interactive_blacklist_report.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         }}
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {{
+            console.log('Interactive Blacklist Report Loaded');
+            console.log('Exact Match Fields:', exactMatchPayload.length + exactMatchHeaders.length);
+        }});
     </script>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🔒 Interactive Telecom API Blacklist Analysis</h1>
-            <h2>🎯 Click Add/Remove to customize your blacklist</h2>
-            <p>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-        </div>
-
-        <div class="interactive-notice">
-            <h3>🎯 Interactive Features:</h3>
-            <ul>
-                <li><strong>Add Button:</strong> Manually add safe fields to blacklist if they contain sensitive data in your context</li>
-                <li><strong>Remove Button:</strong> Remove automatically detected fields if they're not sensitive in your context</li>
-                <li><strong>Real-time Updates:</strong> Configuration updates immediately as you make changes</li>
-                <li><strong>Persistent Storage:</strong> Changes are saved to patterns_config.json for future runs</li>
-                <li><strong>Export Config:</strong> Download the final configuration for your application</li>
-            </ul>
-        </div>
-
-        <div class="stats">
-            <div class="stat-card">
-                <div class="stat-number">{len(self.detailed_analysis)}</div>
-                <div>Analyzed Fields</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">{len(blacklisted_fields)}</div>
-                <div>Auto-Blacklisted</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">{len(key_based_fields)}</div>
-                <div>Key-based</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">{len(value_based_fields)}</div>
-                <div>Value-based</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">{excluded_count}</div>
-                <div>Smartly Excluded</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">{len(fuzzy_matched_fields)}</div>
-                <div>Fuzzy Detected</div>
-            </div>
-        </div>
-
-        <div class="exclusions-section">
-            <h3>📋 Smart Exclusions Applied ({excluded_count} fields):</h3>
-            <div style="max-height: 200px; overflow-y: auto;">"""
-        
-        # Group exclusions by reason
-        exclusion_groups = {}
-        for exclusion in self.excluded_fields:
-            reason = exclusion['reason']
-            if reason not in exclusion_groups:
-                exclusion_groups[reason] = []
-            exclusion_groups[reason].append(exclusion['final_key'])
-        
-        for reason, fields in exclusion_groups.items():
-            html_content += f"<p><strong>{reason}:</strong> {', '.join(fields[:10])}"
-            if len(fields) > 10:
-                html_content += f" <em>(+{len(fields)-10} more)</em>"
-            html_content += "</p>"
-        
-        html_content += f"""
-            </div>
-        </div>
-
-        <div class="filter-controls">
-            <strong>Filter View:</strong>
-            <button class="btn filter-btn" onclick="filterTable('all')">Show All</button>
-            <button class="btn filter-btn" onclick="filterTable('blacklisted')">Only Blacklisted</button>
-            <button class="btn filter-btn" onclick="filterTable('safe')">Only Safe Fields</button>
-            
-            <span style="margin-left: 20px;"><strong>Actions:</strong></span>
-            <button class="btn" onclick="exportConfiguration()">📥 Export Configuration</button>
-            <button class="btn" onclick="saveDeveloperOverrides()">💾 Save Overrides</button>
-        </div>
-
-        <div style="margin: 30px 0;">
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width: 20%;">Field Status</th>
-                        <th style="width: 35%;">Original Field & Values</th>
-                        <th style="width: 35%;">Analysis & Reason</th>
-                        <th style="width: 10%;">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-"""
-
-        # Combine all fields for single table
-        all_fields = blacklisted_fields + not_blacklisted_fields
-        all_fields.sort(key=lambda x: (x['category'], x['field_path']))
-
-        for result in all_fields:
-            row_class = "blacklisted" if result['blacklisted'] else "not-blacklisted"
-            field_name = result['final_key']
-            category = result['category']
-            
-            # Field Status column
-            if result['blacklisted']:
-                field_status = f'<span class="final-key">{field_name}</span>'
-                
-                # Add indicators
-                if result.get('developer_manual'):
-                    field_status += '<span class="manual-indicator">MANUAL</span>'
-                elif result.get('fuzzy_match'):
-                    field_status += '<span class="fuzzy-indicator">FUZZY</span>'
-                if result.get('key_based') and not result.get('developer_manual'):
-                    field_status += '<span class="key-based-indicator">KEY</span>'
-                if result.get('value_based'):
-                    field_status += '<span class="value-based-indicator">VALUE</span>'
-                
-                # Add category tags
-                if result['categories_detected']:
-                    category_tags = ''.join([f'<span class="category-tag {cat.lower()}">{cat}</span>' 
-                                           for cat in result['categories_detected'] if cat != 'DEVELOPER_MANUAL'])
-                    if category_tags:
-                        field_status += f'<br><div style="margin-top: 5px;">{category_tags}</div>'
-            else:
-                field_status = '<span style="color: #28a745; font-weight: bold;">✓ SAFE</span>'
-            
-            # Original field & values column
-            original_field = f'<div class="field-path">{result["field_path"]}</div>'
-            if result['unique_values']:
-                # Limit display to first 3 unique values
-                display_values = result['unique_values'][:3]
-                values_text = '<br>'.join([f'<code>{v}</code>' for v in display_values])
-                if len(result['unique_values']) > 3:
-                    values_text += f'<br><em>... and {len(result["unique_values"]) - 3} more</em>'
-                original_field += f'<div class="values" style="margin-top: 8px;"><strong>Values:</strong><br>{values_text}</div>'
-            
-            # Analysis & Reason column
-            reason = '<br>'.join(result['reasons'])
-            
-            # Action column
-            if result['blacklisted']:
-                action_button = f'<button class="btn-remove" onclick="removeFromBlacklist(\'{field_name}\', \'{category}\', this)">Remove</button>'
-            else:
-                action_button = f'<button class="btn-add" onclick="addToBlacklist(\'{field_name}\', \'{category}\', this)">Add</button>'
-            
-            html_content += f"""
-                    <tr class="{row_class}">
-                        <td>{field_status}</td>
-                        <td>{original_field}</td>
-                        <td class="reason">{reason}</td>
-                        <td>{action_button}</td>
-                    </tr>
-"""
-
-        html_content += f"""
-                </tbody>
-            </table>
-        </div>
-
-        <div class="config-section">
-            <h3>⚙️ Live Configuration (Updates as you click Add/Remove):</h3>
-            <button class="btn" onclick="exportConfiguration()" style="margin-bottom: 10px;">📥 Download Configuration File</button>
-            <button class="btn" onclick="saveDeveloperOverrides()" style="margin-bottom: 10px; margin-left: 10px;">💾 Save Developer Overrides</button>
-            <pre class="config-output" id="config-output">
-payload.blacklist={','.join(sorted(self.payload_blacklist))}
-headers.blacklist={','.join(sorted(self.headers_blacklist))}
-            </pre>
-        </div>
-
-        <div style="background: #d4edda; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <h3>🎯 How to Use Interactive Features:</h3>
-            <ol>
-                <li><strong>Review Auto-Detections:</strong> Check the automatically blacklisted fields in the table</li>
-                <li><strong>Add Missing Fields:</strong> Click "Add" on safe fields that should be blacklisted in your context</li>
-                <li><strong>Remove False Positives:</strong> Click "Remove" on blacklisted fields that aren't sensitive for you</li>
-                <li><strong>Save Your Changes:</strong> Click "💾 Save Overrides" to download developer_overrides.json</li>
-                <li><strong>Apply Changes:</strong> Place the file in your project directory and re-run the analysis</li>
-                <li><strong>Iterative Refinement:</strong> Continue refining across multiple sessions</li>
-            </ol>
-        </div>
-
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <h3>💾 Developer Override Persistence (Simplified):</h3>
-            <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #28a745;">
-                <h4>✨ New Simplified Workflow:</h4>
-                <ol>
-                    <li><strong>Make Changes:</strong> Click Add/Remove buttons as needed</li>
-                    <li><strong>Save Overrides:</strong> Click "💾 Save Overrides" to download <code>developer_overrides.json</code></li>
-                    <li><strong>Place File:</strong> Put the downloaded file in your project directory</li>
-                    <li><strong>Re-run Analysis:</strong> Run the script again - it will automatically load your overrides!</li>
-                </ol>
-            </div>
-            
-            <h4>📋 How it Works:</h4>
-            <ul>
-                <li>The tool checks for <code>developer_overrides.json</code> at startup</li>
-                <li>Your manual decisions are automatically applied during analysis</li>
-                <li>No merge script needed - just download and place the file</li>
-                <li>The file is self-documenting with usage instructions</li>
-                <li>You can edit the JSON file manually if needed</li>
-            </ul>
-            
-            <h4>🔄 Multiple Sessions:</h4>
-            <ul>
-                <li>Each save merges with existing overrides (if any)</li>
-                <li>Whitelist takes precedence over blacklist (no conflicts)</li>
-                <li>You can continue refining across multiple sessions</li>
-            </ul>
-        </div>
-    </div>
 </body>
 </html>
 """
@@ -1771,85 +1981,48 @@ headers.blacklist={','.join(sorted(self.headers_blacklist))}
         with open(output_file, 'w') as f:
             f.write(html_content)
         
-        print(f"📄 Interactive detailed table generated: {output_file}")
+        print(f"📄 Interactive HTML report generated: {output_file}")
         return output_file
     
-    def print_console_summary(self):
+    def print_enhanced_summary(self):
         """Print enhanced console summary"""
-        blacklisted_count = len([r for r in self.detailed_analysis if r['blacklisted']])
-        excluded_count = len(self.excluded_fields)
-        fuzzy_count = len([r for r in self.detailed_analysis if r.get('fuzzy_match')])
-        manual_additions = len(self.developer_overrides['manual_blacklist'])
-        manual_exclusions = len(self.developer_overrides['manual_whitelist'])
+        total_fields = len(self.exact_match_blacklisted) + len(self.value_based_blacklisted) + len(self.safe_fields)
         
-        print("\n" + "="*70)
-        print("        INTERACTIVE BLACKLIST ANALYSIS SUMMARY")
-        print("="*70)
-        print(f"🧠 Intelligence Level: INTERACTIVE with developer overrides")
-        print(f"📊 Total fields analyzed: {len(self.detailed_analysis)}")
-        print(f"🚫 Fields blacklisted: {blacklisted_count}")
-        print(f"✅ Fields smartly excluded: {excluded_count}")
-        print(f"🎯 Fuzzy detections: {fuzzy_count}")
-        print(f"👨‍💻 Developer manual additions: {manual_additions}")
-        print(f"👨‍💻 Developer manual exclusions: {manual_exclusions}")
+        print("\n" + "="*80)
+        print("        ENHANCED BLACKLIST ANALYSIS - DEVELOPER INTERFACE")
+        print("="*80)
+        print(f"🎯 Matching Type: EXACT STRING MATCHING + VALUE PATTERNS")
+        print(f"🏢 Entity Prefixes: {len(self.entity_prefixes)} configured")
+        print(f"📊 Total fields analyzed: {total_fields}")
         
-        print(f"\n📂 CONSOLIDATED BLACKLISTS:")
-        print(f"   payload.blacklist: {len(self.payload_blacklist)} fields")
-        print(f"   headers.blacklist: {len(self.headers_blacklist)} fields")
+        print(f"\n📂 FIELD CATEGORIZATION:")
+        print(f"   🎯 Exact match blacklisted: {len(self.exact_match_blacklisted)}")
+        print(f"   🔍 Value-based matches: {len(self.value_based_blacklisted)}")
+        print(f"   ✅ Smart exclusions: {len(self.excluded_fields)}")
+        print(f"   🛡️ Safe fields: {len(self.safe_fields)}")
         
-        # Show exclusion breakdown
-        if self.excluded_fields:
-            exclusion_reasons = {}
-            for exclusion in self.excluded_fields:
-                reason = exclusion['reason']
-                exclusion_reasons[reason] = exclusion_reasons.get(reason, 0) + 1
-            
-            print(f"\n🎯 Smart Exclusions Breakdown:")
-            for reason, count in exclusion_reasons.items():
-                print(f"   {reason}: {count} fields")
+        # Calculate final configuration counts
+        exact_payload = len([r for r in self.exact_match_blacklisted if r['category'] in ['request', 'response']])
+        exact_headers = len([r for r in self.exact_match_blacklisted if r['category'] == 'headers'])
         
-        # Show developer overrides
-        if self.developer_overrides['manual_blacklist']:
-            print(f"\n👨‍💻 Developer Manual Additions:")
-            for field in list(self.developer_overrides['manual_blacklist'])[:5]:
-                print(f"   ✅ {field}")
-            if len(self.developer_overrides['manual_blacklist']) > 5:
-                print(f"   ... and {len(self.developer_overrides['manual_blacklist']) - 5} more")
+        print(f"\n📋 FINAL CONFIGURATION (Exact Matches Only):")
+        print(f"   payload.blacklist: {exact_payload} fields")
+        print(f"   headers.blacklist: {exact_headers} fields")
         
-        if self.developer_overrides['manual_whitelist']:
-            print(f"\n👨‍💻 Developer Manual Exclusions:")
-            for field in list(self.developer_overrides['manual_whitelist'])[:5]:
-                print(f"   ❌ {field}")
-            if len(self.developer_overrides['manual_whitelist']) > 5:
-                print(f"   ... and {len(self.developer_overrides['manual_whitelist']) - 5} more")
+        print(f"\n💾 DEVELOPER OVERRIDES:")
+        print(f"   Manual blacklist: {len(self.developer_overrides['manual_blacklist'])} fields")
+        print(f"   Manual whitelist: {len(self.developer_overrides['manual_whitelist'])} fields")
         
-        print(f"\n📋 Examples of fixes applied:")
-        for exclusion in self.excluded_fields[:5]:
-            print(f"   ✅ {exclusion['final_key']} → {exclusion['reason']}")
-        
-        # Show consolidated blacklist preview
-        if self.payload_blacklist:
-            payload_preview = list(self.payload_blacklist)[:8]
-            payload_str = ','.join(payload_preview)
-            if len(self.payload_blacklist) > 8:
-                payload_str += f",... (+{len(self.payload_blacklist) - 8} more)"
-            print(f"\n📋 payload.blacklist preview: {payload_str}")
-        
-        if self.headers_blacklist:
-            headers_preview = list(self.headers_blacklist)[:8]
-            headers_str = ','.join(headers_preview)
-            if len(self.headers_blacklist) > 8:
-                headers_str += f",... (+{len(self.headers_blacklist) - 8} more)"
-            print(f"📋 headers.blacklist preview: {headers_str}")
-        
-        print(f"\n🎯 Next Steps:")
-        print(f"   1. Open the interactive HTML table to review and customize")
-        print(f"   2. Click Add/Remove buttons to fine-tune the blacklist")
-        print(f"   3. Export the final configuration when satisfied")
-        print(f"   4. Your decisions will be saved for future runs")
+        print(f"\n🎯 Key Features:")
+        print(f"   ✅ Tabbed interface for easy field review")
+        print(f"   ✅ Add/Remove buttons for dynamic management")
+        print(f"   ✅ Downloadable developer overrides")
+        print(f"   ✅ Search functionality for large field sets")
+        print(f"   ✅ Exact matches only in final configuration")
+        print(f"   ✅ Value-based matches require manual review")
     
     def analyze_data(self, data_file: str):
-        """Analyze the extracted data with enhanced filtering"""
+        """Analyze the extracted data with enhanced exact matching"""
         with open(data_file, 'r') as f:
             data = json.load(f)
         
@@ -1861,67 +2034,83 @@ headers.blacklist={','.join(sorted(self.headers_blacklist))}
                 self.analyze_field(field_path, values)
         
         return {
-            'total_fields': len(self.detailed_analysis),
-            'blacklisted_fields': len([r for r in self.detailed_analysis if r['blacklisted']]),
-            'excluded_fields': len(self.excluded_fields)
+            'total_fields': len(self.exact_match_blacklisted) + len(self.value_based_blacklisted) + len(self.safe_fields),
+            'exact_match_blacklisted': len(self.exact_match_blacklisted),
+            'value_based_blacklisted': len(self.value_based_blacklisted),
+            'excluded_fields': len(self.excluded_fields),
+            'safe_fields': len(self.safe_fields)
         }
 
 def main():
     import sys
     
     if len(sys.argv) < 2:
-        print("Usage: python interactive_blacklist_generator.py <postman_extraction_results.json> [patterns_config.json]")
-        print("Example: python interactive_blacklist_generator.py data.json patterns_config.json")
+        print("Usage: python enhanced_blacklist_generator.py <postman_extraction_results.json> [enhanced_patterns_config.json]")
+        print("Example: python enhanced_blacklist_generator.py data.json enhanced_patterns_config.json")
         return
     
     data_file = sys.argv[1]
-    patterns_file = sys.argv[2] if len(sys.argv) > 2 else 'patterns_config.json'
+    patterns_file = sys.argv[2] if len(sys.argv) > 2 else 'enhanced_patterns_config.json'
     
     if not os.path.exists(data_file):
         print(f"❌ Data file {data_file} not found")
         return
     
-    print("🚀 Starting INTERACTIVE blacklist analysis...")
-    print("🎯 New Feature: Add/Remove buttons for manual override")
+    print("🚀 Starting ENHANCED blacklist analysis with Developer Interface...")
+    print("🎯 NEW: Developer-friendly tabbed interface")
+    print("🔧 NEW: Dynamic Add/Remove field management")
+    print("💾 NEW: Downloadable developer overrides")
+    print("🔍 NEW: Search and filter capabilities")
     print(f"📄 Data source: {data_file}")
-    print(f"⚙️  Patterns source: {patterns_file}")
+    print(f"⚙️  Enhanced patterns: {patterns_file}")
     
     try:
-        generator = TelecomBlacklistGenerator(patterns_file)
+        generator = EnhancedTelecomBlacklistGenerator(patterns_file)
         
         # Analyze the data
         summary = generator.analyze_data(data_file)
         
         # Generate outputs
         properties_file = generator.generate_properties()
-        table_file = generator.generate_detailed_table_html()
+        html_report = generator.generate_interactive_html_report()
+        overrides_file = generator.save_developer_overrides()
         
         # Print console summary
-        generator.print_console_summary()
+        generator.print_enhanced_summary()
         
         print(f"\n📄 Generated files:")
-        print(f"   📋 Properties: {properties_file}")
-        print(f"   🎯 Interactive table: {table_file}")
-        print(f"   ⚙️  Patterns config: {patterns_file}")
+        print(f"   📋 Enhanced properties: {properties_file}")
+        print(f"   🎯 Interactive HTML report: {html_report}")
+        print(f"   💾 Developer overrides: {overrides_file}")
+        print(f"   ⚙️  Enhanced patterns config: {patterns_file}")
         
-        print(f"\n✅ Interactive analysis complete!")
-        print(f"🎯 New Features:")
-        print(f"   • Add/Remove buttons in HTML table")
-        print(f"   • Real-time configuration updates")
-        print(f"   • Developer overrides saved to patterns_config.json")
-        print(f"   • Persistent decisions across runs")
-        print(f"   • Export final configuration")
+        print(f"\n✅ Enhanced analysis complete with Developer Interface!")
+        print(f"🎯 Key Features:")
+        print(f"   • Interactive tabbed interface for easy field review")
+        print(f"   • Dynamic Add/Remove buttons for field management")
+        print(f"   • Downloadable developer overrides JSON")
+        print(f"   • Search and filter functionality")
+        print(f"   • Exact matches only in final configuration")
+        print(f"   • Value-based matches require manual review")
+        print(f"   • Automatic override loading on subsequent runs")
         
-        print(f"\n📖 Usage:")
-        print(f"   1. Open {table_file} in your browser")
-        print(f"   2. Review auto-detected blacklisted fields")
-        print(f"   3. Click 'Add' on safe fields that should be blacklisted")
-        print(f"   4. Click 'Remove' on blacklisted fields that are actually safe")
-        print(f"   5. Export the final configuration")
-        print(f"   6. Your decisions are saved for future runs!")
+        print(f"\n📖 Results Summary:")
+        print(f"   📊 Total fields: {summary['total_fields']}")
+        print(f"   🎯 Exact match blacklisted: {summary['exact_match_blacklisted']}")
+        print(f"   🔍 Value-based matches: {summary['value_based_blacklisted']}")
+        print(f"   ✅ Smart exclusions: {summary['excluded_fields']}")
+        print(f"   🛡️ Safe fields: {summary['safe_fields']}")
+        
+        print(f"\n🔧 How to use the Developer Interface:")
+        print(f"   1. Open {html_report} in your browser")
+        print(f"   2. Review exact match fields in the first tab")
+        print(f"   3. Use Remove button to exclude false positives")
+        print(f"   4. Review value-based matches and add legitimate fields")
+        print(f"   5. Download developer overrides to persist changes")
+        print(f"   6. Re-run this script to apply overrides automatically")
         
     except Exception as e:
-        print(f"❌ Error during analysis: {e}")
+        print(f"❌ Error during enhanced analysis: {e}")
         import traceback
         traceback.print_exc()
 
