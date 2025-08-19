@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Microservice Properties Comparator</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .mismatch-row { background-color: #ffe6e6; }
+        .match-row { background-color: #e6ffe6; }
+        .loading { display: none; }
+        .comparison-table { font-size: 0.9em; }
+        .property-key { font-weight: bold; color: #2c3e50; }
+        .mismatch-value { background-color: #ffebee; border: 2px solid #f44336; }
+        .stats-card { border-left: 4px solid #007bff; }
+        .mismatch-stats { border-left: 4px solid #dc3545; }
+        .match-stats { border-left: 4px solid #28a745; }
+        .nav-pills .nav-link.active { background-color: #007bff; }
+        .sub-nav .nav-link { color: #6c757d; border-radius: 0.25rem; }
+        .sub-nav .nav-link.active { background-color: #e9ecef; color: #495057; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <div class="row">
+            <div class="col-12">
+                <h1 class="mb-4">
+                    <i class="fas fa-cogs text-primary"></i>
+                    Microservice Properties Comparator
+                    <small class="text-muted">with Security Analysis</small>
+                </h1>
+                
+                <!-- Repository Input -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fab fa-github"></i>
+                            Repository Configuration
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-8">
+                                <label for="repoUrl" class="form-label">Repository URL</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-link"></i></span>
+                                    <input type="url" id="repoUrl" class="form-control" 
+                                           placeholder="https://github.com/owner/repository">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="githubToken" class="form-label">GitHub Token (Optional)</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-key"></i></span>
+                                    <input type="password" id="githubToken" class="form-control" 
+                                           placeholder="For private repositories">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="branchName" class="form-label">Branch</label>
+                                <input type="text" id="branchName" class="form-control" 
+                                       value="main" placeholder="main">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">&nbsp;</label>
+                                <div>
+                                    <button class="btn btn-outline-secondary me-2" id="discoverBtn">
+                                        <i class="fas fa-search"></i>
+                                        Discover Microservices
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="loading text-center mb-3" style="display: none;">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <div id="loadingMessage">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Microservice Selection -->
+                <div class="card mb-4" id="microserviceSelection" style="display: none;">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-cubes"></i>
+                            Select Microservices to Compare
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">Available Microservices</label>
+                                <div class="border rounded p-3" style="height: 300px; overflow-y: auto;">
+                                    <div class="mb-2">
+                                        <button class="btn btn-sm btn-outline-primary me-2" id="selectAllBtn">
+                                            Select All
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary" id="clearAllBtn">
+                                            Clear All
+                                        </button>
+                                    </div>
+                                    <div id="microserviceList"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Selected Microservices (<span id="selectedCount">0</span>)</label>
+                                <div class="border rounded p-3" style="height: 300px; overflow-y: auto;">
+                                    <div id="selectedMicroservices" class="text-muted">
+                                        No microservices selected
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <button class="btn btn-primary" id="scanBtn" disabled>
+                                        <i class="fas fa-play"></i>
+                                        Start Comparison
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Alert Messages -->
+                <div id="alertContainer"></div>
+                
+                <!-- Statistics Cards -->
+                <div id="statsContainer" style="display: none;">
+                    <div class="row mb-4">
+                        <div class="col-md-2">
+                            <div class="card stats-card">
+                                <div class="card-body">
+                                    <h5 class="card-title">
+                                        <i class="fas fa-cubes"></i>
+                                        Services
+                                    </h5>
+                                    <h3 class="text-primary" id="microservicesCount">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="card stats-card">
+                                <div class="card-body">
+                                    <h5 class="card-title">
+                                        <i class="fas fa-layer-group"></i>
+                                        Environments
+                                    </h5>
+                                    <h3 class="text-info" id="environmentsCount">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="card match-stats">
+                                <div class="card-body">
+                                    <h5 class="card-title">
+                                        <i class="fas fa-check-circle"></i>
+                                        Matching
+                                    </h5>
+                                    <h3 class="text-success" id="matchingCount">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="card mismatch-stats">
+                                <div class="card-body">
+                                    <h5 class="card-title">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                        Mismatched
+                                    </h5>
+                                    <h3 class="text-danger" id="mismatchedCount">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="card" style="border-left: 4px solid #dc3545;">
+                                <div class="card-body">
+                                    <h5 class="card-title">
+                                        <i class="fas fa-shield-alt"></i>
+                                        Security
+                                    </h5>
+                                    <h3 class="text-danger" id="securityIssuesCount">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="card stats-card">
+                                <div class="card-body text-center">
+                                    <button class="btn btn-outline-success btn-sm" id="exportExcelBtn" disabled>
+                                        <i class="fas fa-file-excel"></i>
+                                        Export Excel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Security Alert -->
+                    <div id="securityAlert" class="alert alert-danger" style="display: none;">
+                        <h5 class="alert-heading">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            Security Issues Detected!
+                        </h5>
+                        <div id="securitySummary"></div>
+                        <hr>
+                        <button class="btn btn-outline-danger btn-sm" id="viewSecurityBtn">
+                            <i class="fas fa-eye"></i>
+                            View Security Report
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Environment Tabs -->
+                <div id="environmentTabs" style="display: none;">
+                    <ul class="nav nav-pills mb-3" id="envTabList" role="tablist"></ul>
+                    <div class="tab-content" id="envTabContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
+    <script>
+        class PropertiesComparator {
+            constructor() {
+                this.comparisonData = null;
+                this.availableMicroservices = [];
+                this.selectedMicroservices = new Set();
+                this.securityData = null;
+                this.initializeEventListeners();
+            }
+            
+            initializeEventListeners() {
+                document.getElementById('discoverBtn').addEventListener('click', () => this.discoverMicroservices());
+                document.getElementById('scanBtn').addEventListener('click', () => this.scanRepository());
+                document.getElementById('selectAllBtn').addEventListener('click', () => this.selectAllMicroservices());
+                document.getElementById('clearAllBtn').addEventListener('click', () => this.clearAllMicroservices());
+                document.getElementById('exportExcelBtn').addEventListener('click', () => this.exportToExcel());
+                
+                document.getElementById('repoUrl').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') this.discoverMicroservices();
+                });
+            }
+            
+            showAlert(message, type = 'info') {
+                const alertContainer = document.getElementById('alertContainer');
+                const alertHtml = `
+                    <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                        <i class="fas fa-${type === 'danger' ? 'exclamation-circle' : 'info-circle'}"></i>
+                        ${message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>`;
+                alertContainer.innerHTML = alertHtml;
+                
+                setTimeout(() => {
+                    const alert = alertContainer.querySelector('.alert');
+                    if (alert) {
+                        const bsAlert = new bootstrap.Alert(alert);
+                        bsAlert.close();
+                    }
+                }, 5000);
+            }
+            
+            showLoading(show = true, message = 'Loading...') {
+                const loading = document.querySelector('.loading');
+                const loadingMessage = document.getElementById('loadingMessage');
+                const discoverBtn = document.getElementById('discoverBtn');
+                const scanBtn = document.getElementById('scanBtn');
+                
+                loading.style.display = show ? 'block' : 'none';
+                loadingMessage.textContent = message;
+                discoverBtn.disabled = show;
+                if (!show || this.selectedMicroservices.size === 0) {
+                    scanBtn.disabled = show || this.selectedMicroservices.size === 0;
+                }
+            }
+            
+            async discoverMicroservices() {
+                const repoUrl = document.getElementById('repoUrl').value.trim();
+                const githubToken = document.getElementById('githubToken').value.trim();
+                const branch = document.getElementById('branchName').value.trim() || 'main';
+                
+                if (!repoUrl) {
+                    this.showAlert('Please enter a repository URL', 'warning');
+                    return;
+                }
+                
+                this.showLoading(true, 'Discovering microservices...');
+                
+                try {
+                    const response = await fetch('/api/discover-microservices', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ repo_url: repoUrl, github_token: githubToken, branch: branch })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        this.availableMicroservices = data.microservices;
+                        this.displayMicroserviceList(data.microservices);
+                        this.showAlert(`Found ${data.count} microservices with templates folders`, 'success');
+                        document.getElementById('microserviceSelection').style.display = 'block';
+                    } else {
+                        this.showAlert(data.error || 'Failed to discover microservices', 'danger');
+                    }
+                } catch (error) {
+                    this.showAlert('Network error: ' + error.message, 'danger');
+                } finally {
+                    this.showLoading(false);
+                }
+            }
+            
+            displayMicroserviceList(microservices) {
+                const listContainer = document.getElementById('microserviceList');
+                listContainer.innerHTML = '';
+                
+                microservices.forEach(ms => {
+                    const checkboxDiv = document.createElement('div');
+                    checkboxDiv.className = 'form-check mb-2';
+                    checkboxDiv.innerHTML = `
+                        <input class="form-check-input microservice-checkbox" 
+                               type="checkbox" value="${ms}" id="ms-${ms}">
+                        <label class="form-check-label" for="ms-${ms}">${ms}</label>
+                        <button class="btn btn-sm btn-outline-info ms-2 preview-btn" 
+                                data-microservice="${ms}">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    `;
+                    listContainer.appendChild(checkboxDiv);
+                });
+                
+                document.querySelectorAll('.microservice-checkbox').forEach(checkbox => {
+                    checkbox.addEventListener('change', (e) => this.updateSelectedMicroservices(e));
+                });
+                
+                document.querySelectorAll('.preview-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const msName = e.target.closest('.preview-btn').dataset.microservice;
+                        this.previewMicroservice(msName);
+                    });
+                });
+            }
+            
+            updateSelectedMicroservices(event) {
+                const microservice = event.target.value;
+                if (event.target.checked) {
+                    this.selectedMicroservices.add(microservice);
+                } else {
+                    this.selectedMicroservices.delete(microservice);
+                }
+                this.updateSelectedDisplay();
+            }
+            
+            updateSelectedDisplay() {
+                const selectedContainer = document.getElementById('selectedMicroservices');
+                const selectedCount = document.getElementById('selectedCount');
+                const scanBtn = document.getElementById('scanBtn');
+                
+                selectedCount.textContent = this.selectedMicroservices.size;
+                
+                if (this.selectedMicroservices.size === 0) {
+                    selectedContainer.innerHTML = '<div class="text-muted">No microservices selected</div>';
+                    scanBtn.disabled = true;
+                } else {
+                    const selectedList = Array.from(this.selectedMicroservices)
+                        .map(ms => `<span class="badge bg-primary me-1 mb-1">${ms}</span>`)
+                        .join('');
+                    selectedContainer.innerHTML = selectedList;
+                    scanBtn.disabled = false;
+                }
+            }
+            
+            selectAllMicroservices() {
+                document.querySelectorAll('.microservice-checkbox').forEach(checkbox => {
+                    checkbox.checked = true;
+                    this.selectedMicroservices.add(checkbox.value);
+                });
+                this.updateSelectedDisplay();
+            }
+            
+            clearAllMicroservices() {
+                document.querySelectorAll('.microservice-checkbox').forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+                this.selectedMicroservices.clear();
+                this.updateSelectedDisplay();
+            }
+            
+            async previewMicroservice(microserviceName) {
+                const repoUrl = document.getElementById('repoUrl').value.trim();
+                const githubToken = document.getElementById('githubToken').value.trim();
+                const branch = document.getElementById('branchName').value.trim() || 'main';
+                
+                try {
+                    const response = await fetch('/api/preview-microservice', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            repo_url: repoUrl, 
+                            microservice_name: microserviceName, 
+                            github_token: githubToken, 
+                            branch: branch 
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        this.showPreviewModal(microserviceName, data.structure);
+                    } else {
+                        this.showAlert(data.error || 'Failed to preview microservice', 'danger');
+                    }
+                } catch (error) {
+                    this.showAlert('Network error: ' + error.message, 'danger');
+                }
+            }
+            
+            showPreviewModal(microserviceName, structure) {
+                const existingModal = document.getElementById('previewModal');
+                if (existingModal) existingModal.remove();
+                
+                const modalHtml = `
+                    <div class="modal fade" id="previewModal" tabindex="-1">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">
+                                        <i class="fas fa-cube"></i>
+                                        ${microserviceName} - Template Structure
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    ${this.createStructureHTML(structure)}
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+                modal.show();
+            }
+            
+            createStructureHTML(structure) {
+                if (Object.keys(structure).length === 0) {
+                    return '<div class="alert alert-warning">No templates found for this microservice.</div>';
+                }
+                
+                let html = '<div class="accordion" id="structureAccordion">';
+                
+                Object.entries(structure).forEach(([envName, files], index) => {
+                    const collapseId = `collapse${index}`;
+                    const isFirst = index === 0;
+                    
+                    html += `
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="heading${index}">
+                                <button class="accordion-button ${isFirst ? '' : 'collapsed'}" 
+                                        type="button" data-bs-toggle="collapse" 
+                                        data-bs-target="#${collapseId}">
+                                    <i class="fas fa-folder me-2"></i>
+                                    ${envName} (${files.length} files)
+                                </button>
+                            </h2>
+                            <div id="${collapseId}" 
+                                 class="accordion-collapse collapse ${isFirst ? 'show' : ''}" 
+                                 data-bs-parent="#structureAccordion">
+                                <div class="accordion-body">
+                                    ${files.length > 0 ? 
+                                        files.map(file => `
+                                            <div class="d-flex align-items-center mb-2">
+                                                <i class="fas fa-file-alt text-muted me-2"></i>
+                                                <code>${file}</code>
+                                            </div>
+                                        `).join('') : 
+                                        '<div class="text-muted">No .properties files found</div>'
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+                return html;
+            }
+            
+            async scanRepository() {
+                const repoUrl = document.getElementById('repoUrl').value.trim();
+                const githubToken = document.getElementById('githubToken').value.trim();
+                const branch = document.getElementById('branchName').value.trim() || 'main';
+                
+                if (!repoUrl) {
+                    this.showAlert('Please enter a repository URL', 'warning');
+                    return;
+                }
+                
+                if (this.selectedMicroservices.size === 0) {
+                    this.showAlert('Please select at least one microservice to compare', 'warning');
+                    return;
+                }
+                
+                this.showLoading(true, 'Scanning selected microservices...');
+                
+                try {
+                    const response = await fetch('/api/scan', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            repo_url: repoUrl, 
+                            microservices: Array.from(this.selectedMicroservices), 
+                            github_token: githubToken, 
+                            branch: branch 
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        this.comparisonData = data;
+                        this.displayResults(data);
+                        this.showAlert(`Successfully scanned ${data.scanned_microservices.length} microservices`, 'success');
+                    } else {
+                        this.showAlert(data.error || 'Failed to scan repository', 'danger');
+                    }
+                } catch (error) {
+                    this.showAlert('Network error: ' + error.message, 'danger');
+                } finally {
+                    this.showLoading(false);
+                }
+            }
+            
+            displayResults(data) {
+                document.getElementById('microservicesCount').textContent = data.microservices_count;
+                document.getElementById('environmentsCount').textContent = data.environments.length;
+                
+                let totalMatching = 0, totalMismatched = 0;
+                Object.values(data.comparison_results).forEach(env => {
+                    totalMatching += env.matched_count;
+                    totalMismatched += env.mismatched_count;
+                });
+                
+                document.getElementById('matchingCount').textContent = totalMatching;
+                document.getElementById('mismatchedCount').textContent = totalMismatched;
+                
+                const securityCounts = data.summary.security_issues_count;
+                const totalSecurityIssues = securityCounts.hardcoded_secrets + 
+                                          securityCounts.insecure_protocols + 
+                                          securityCounts.weak_configurations;
+                document.getElementById('securityIssuesCount').textContent = totalSecurityIssues;
+                
+                if (totalSecurityIssues > 0) {
+                    this.showSecurityAlert(securityCounts, data.security_analysis);
+                }
+                
+                document.getElementById('exportExcelBtn').disabled = false;
+                document.getElementById('statsContainer').style.display = 'block';
+                
+                this.securityData = data.security_analysis;
+                this.createEnvironmentTabs(data.environments, data.comparison_results);
+                document.getElementById('environmentTabs').style.display = 'block';
+            }
+            
+            showSecurityAlert(counts, securityData) {
+                const securityAlert = document.getElementById('securityAlert');
+                const securitySummary = document.getElementById('securitySummary');
+                
+                let summaryHTML = '<ul class="mb-0">';
+                if (counts.hardcoded_secrets > 0) {
+                    summaryHTML += `<li><strong>${counts.hardcoded_secrets}</strong> hardcoded secrets found</li>`;
+                }
+                if (counts.insecure_protocols > 0) {
+                    summaryHTML += `<li><strong>${counts.insecure_protocols}</strong> insecure protocol configurations</li>`;
+                }
+                if (counts.weak_configurations > 0) {
+                    summaryHTML += `<li><strong>${counts.weak_configurations}</strong> weak security configurations</li>`;
+                }
+                summaryHTML += '</ul>';
+                
+                securitySummary.innerHTML = summaryHTML;
+                securityAlert.style.display = 'block';
+                
+                document.getElementById('viewSecurityBtn').addEventListener('click', () => {
+                    this.showSecurityModal(securityData);
+                });
+            }
+            
+            showSecurityModal(securityData) {
+                // Security modal implementation would go here
+                alert('Security modal - check console for data');
+                console.log('Security Data:', securityData);
+            }
+            
+            async exportToExcel() {
+                if (!this.comparisonData) {
+                    this.showAlert('No data to export', 'warning');
+                    return;
+                }
+                
+                try {
+                    const response = await fetch('/api/export/excel', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(this.comparisonData)
+                    });
+                    
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.style.display = 'none';
+                        a.href = url;
+                        a.download = `properties_comparison_${new Date().toISOString().slice(0,10)}.xlsx`;
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        this.showAlert('Excel file downloaded successfully!', 'success');
+                    } else {
+                        this.showAlert('Failed to export Excel file', 'danger');
+                    }
+                } catch (error) {
+                    this.showAlert('Error exporting Excel file: ' + error.message, 'danger');
+                }
+            }
+            
+            createEnvironmentTabs(environments, comparisonResults) {
+                const tabList = document.getElementById('envTabList');
+                const tabContent = document.getElementById('envTabContent');
+                
+                tabList.innerHTML = '';
+                tabContent.innerHTML = '';
+                
+                environments.forEach((env, index) => {
+                    const envData = comparisonResults[env];
+                    const isActive = index === 0;
+                    
+                    const tabItem = document.createElement('li');
+                    tabItem.className = 'nav-item';
+                    tabItem.innerHTML = `
+                        <button class="nav-link ${isActive ? 'active' : ''}" 
+                                id="env-${env}-tab" data-bs-toggle="pill" 
+                                data-bs-target="#env-${env}" type="button" role="tab">
+                            ${env.toUpperCase()} 
+                            <span class="badge bg-${envData.mismatched_count > 0 ? 'danger' : 'success'} ms-1">
+                                ${envData.mismatched_count}
+                            </span>
+                        </button>`;
+                    tabList.appendChild(tabItem);
+                    
+                    const tabPane = document.createElement('div');
+                    tabPane.className = `tab-pane fade ${isActive ? 'show active' : ''}`;
+                    tabPane.id = `env-${env}`;
+                    tabPane.role = 'tabpanel';
+                    tabPane.innerHTML = this.createEnvironmentContent(env, envData);
+                    tabContent.appendChild(tabPane);
+                });
+            }
+            
+            createEnvironmentContent(env, envData) {
+                return `
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Environment: ${env.toUpperCase()}</h5>
+                            <small class="text-muted">
+                                ${envData.microservices.length} microservices, 
+                                ${envData.total_properties} properties total
+                            </small>
+                        </div>
+                        <div class="card-body">
+                            <ul class="nav nav-tabs sub-nav mb-3" role="tablist">
+                                <li class="nav-item">
+                                    <button class="nav-link active" data-bs-toggle="tab" 
+                                            data-bs-target="#${env}-mismatched" type="button">
+                                        <i class="fas fa-exclamation-triangle text-danger"></i>
+                                        Mismatched (${envData.mismatched_count})
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link" data-bs-toggle="tab" 
+                                            data-bs-target="#${env}-matched" type="button">
+                                        <i class="fas fa-check-circle text-success"></i>
+                                        Matched (${envData.matched_count})
+                                    </button>
+                                </li>
+                            </ul>
+                            
+                            <div class="tab-content">
+                                <div class="tab-pane fade show active" id="${env}-mismatched">
+                                    ${this.createPropertiesTable(envData.mismatched, envData.microservices, true)}
+                                </div>
+                                <div class="tab-pane fade" id="${env}-matched">
+                                    ${this.createPropertiesTable(envData.matching, envData.microservices, false)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+            }
+            
+            createPropertiesTable(properties, microservices, isMismatch) {
+                if (Object.keys(properties).length === 0) {
+                    return `<div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        No ${isMismatch ? 'mismatched' : 'matching'} properties found.
+                    </div>`;
+                }
+                
+                let tableHtml = `
+                    <div class="table-responsive">
+                        <table class="table table-striped comparison-table">
+                            <thead class="table-dark">
+                                <tr><th>Property Key</th>`;
+                
+                microservices.forEach(ms => {
+                    tableHtml += `<th>${ms}</th>`;
+                });
+                
+                tableHtml += '</tr></thead><tbody>';
+                
+                Object.entries(properties).forEach(([key, values]) => {
+                    const rowClass = isMismatch ? 'mismatch-row' : 'match-row';
+                    tableHtml += `<tr class="${rowClass}"><td class="property-key">${key}</td>`;
+                    
+                    microservices.forEach(ms => {
+                        const value = values[ms] || '<span class="text-muted">N/A</span>';
+                        const cellClass = isMismatch && values[ms] ? 'mismatch-value' : '';
+                        tableHtml += `<td class="${cellClass}">${value}</td>`;
+                    });
+                    
+                    tableHtml += '</tr>';
+                });
+                
+                tableHtml += '</tbody></table></div>';
+                return tableHtml;
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            new PropertiesComparator();
+        });
+    </script>
+</body>
+</html>
