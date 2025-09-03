@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    <!-- Stats Cards -->
+    <div class="bg-white p-6 rounded-lg shadow">
+        <div class="flex items-center">
+            <i class="fas fa-check-circle text-green-500 text-2xl mr-4"></i>
+            <div>
+                <p class="text-sm text-gray-600">Total Checks (24h)</p>
+                <p class="text-2xl font-bold">{{ summary.total_checks }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-white p-6 rounded-lg shadow">
+        <div class="flex items-center">
+            <i class="fas fa-exclamation-triangle text-yellow-500 text-2xl mr-4"></i>
+            <div>
+                <p class="text-sm text-gray-600">Changes Detected</p>
+                <p class="text-2xl font-bold">{{ summary.changes_detected }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-white p-6 rounded-lg shadow">
+        <div class="flex items-center">
+            <i class="fas fa-chart-line text-blue-500 text-2xl mr-4"></i>
+            <div>
+                <p class="text-sm text-gray-600">Stability Rate</p>
+                <p class="text-2xl font-bold">{{ summary.stability_rate }}%</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-white p-6 rounded-lg shadow">
+        <div class="flex items-center">
+            <i class="fas fa-clock text-purple-500 text-2xl mr-4"></i>
+            <div>
+                <p class="text-sm text-gray-600">Last Check</p>
+                <p class="text-sm font-bold">{{ summary.last_check or 'Never' }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Account Count Trend Chart -->
+<div class="bg-white p-6 rounded-lg shadow mb-8">
+    <h2 class="text-xl font-bold mb-4">
+        <i class="fas fa-chart-area mr-2"></i>Account Count Trend (24h)
+    </h2>
+    <canvas id="trendChart" width="400" height="100"></canvas>
+</div>
+
+<!-- Recent Alerts -->
+<div class="bg-white p-6 rounded-lg shadow">
+    <h2 class="text-xl font-bold mb-4">
+        <i class="fas fa-bell mr-2"></i>Recent Changes
+    </h2>
+    {% if summary.recent_alerts %}
+        <div class="space-y-3">
+            {% for alert in summary.recent_alerts %}
+            <div class="border-l-4 {% if alert.account_count_diff < 0 %}border-red-500{% elif alert.account_count_diff > 0 %}border-green-500{% else %}border-yellow-500{% endif %} pl-4 py-2">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="font-semibold">
+                            {% if alert.account_count_diff < 0 %}
+                                <i class="fas fa-arrow-down text-red-500 mr-1"></i>
+                                {{ alert.account_count_diff }} accounts removed
+                            {% elif alert.account_count_diff > 0 %}
+                                <i class="fas fa-arrow-up text-green-500 mr-1"></i>
+                                +{{ alert.account_count_diff }} accounts added
+                            {% else %}
+                                <i class="fas fa-edit text-yellow-500 mr-1"></i>
+                                Field changes detected
+                            {% endif %}
+                        </p>
+                        <p class="text-sm text-gray-600">Current count: {{ alert.current_count }}</p>
+                    </div>
+                    <span class="text-xs text-gray-500">{{ alert.timestamp }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="text-gray-500">No changes detected in the last 24 hours.</p>
+    {% endif %}
+</div>
+
+<script>
+// Trend Chart
+const ctx = document.getElementById('trendChart').getContext('2d');
+const trendData = {{ summary.trend_data | tojson }};
+if (trendData && trendData.length > 0) {
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: trendData.map(d => d.timestamp.split('T')[1].substring(0,5)),
+            datasets: [{
+                label: 'Account Count',
+                data: trendData.map(d => d.account_count),
+                borderColor: 'rgb(59, 130, 246)',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                tension: 0.1,
+                pointBackgroundColor: trendData.map(d => d.is_different ? 'red' : 'rgb(59, 130, 246)'),
+                pointRadius: trendData.map(d => d.is_different ? 6 : 3)
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: false
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const point = trendData[context.dataIndex];
+                            return `Count: ${context.parsed.y}${point.is_different ? ' (Changed!)' : ''}`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+} else {
+    document.getElementById('trendChart').getContext('2d').fillText('No data available yet', 10, 50);
+}
+</script>
+{% endblock %}

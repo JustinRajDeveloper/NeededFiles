@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Trends - Solr Monitor{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-6">
+    <h1 class="text-2xl font-bold">
+        <i class="fas fa-chart-line mr-2"></i>Account Count Trends
+    </h1>
+    <div class="space-x-2">
+        <a href="/trends?hours=24" class="px-3 py-1 bg-blue-500 text-white rounded {% if hours_back == 24 %}bg-blue-700{% endif %}">24h</a>
+        <a href="/trends?hours=168" class="px-3 py-1 bg-blue-500 text-white rounded {% if hours_back == 168 %}bg-blue-700{% endif %}">7d</a>
+        <a href="/trends?hours=720" class="px-3 py-1 bg-blue-500 text-white rounded {% if hours_back == 720 %}bg-blue-700{% endif %}">30d</a>
+    </div>
+</div>
+
+<div class="bg-white p-6 rounded-lg shadow">
+    <canvas id="mainTrendChart" width="400" height="100"></canvas>
+</div>
+
+<script>
+const trendCtx = document.getElementById('mainTrendChart').getContext('2d');
+const trendData = {{ trend_data | tojson }};
+
+const mainChart = new Chart(trendCtx, {
+    type: 'line',
+    data: {
+        labels: trendData.map(d => new Date(d.timestamp).toLocaleString()),
+        datasets: [{
+            label: 'Account Count',
+            data: trendData.map(d => d.account_count),
+            borderColor: 'rgb(59, 130, 246)',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            tension: 0.1,
+            pointBackgroundColor: trendData.map(d => d.is_different ? 'red' : 'rgb(59, 130, 246)'),
+            pointRadius: trendData.map(d => d.is_different ? 6 : 3),
+            fill: true
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            x: {
+                display: true,
+                title: {
+                    display: true,
+                    text: 'Time'
+                }
+            },
+            y: {
+                display: true,
+                title: {
+                    display: true,
+                    text: 'Account Count'
+                },
+                beginAtZero: false
+            }
+        },
+        plugins: {
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        const point = trendData[context.dataIndex];
+                        return `Count: ${context.parsed.y}${point.is_different ? ' (Changed!)' : ''}`;
+                    }
+                }
+            },
+            legend: {
+                display: true
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

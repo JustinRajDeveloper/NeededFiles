@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Solr Monitor Dashboard{% endblock %}</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+    <nav class="bg-blue-600 text-white p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold">
+                <i class="fas fa-search mr-2"></i>Solr Monitor Dashboard
+            </h1>
+            <div class="space-x-4">
+                <a href="/" class="hover:text-blue-200">Dashboard</a>
+                <a href="/comparisons" class="hover:text-blue-200">Comparisons</a>
+                <a href="/trends" class="hover:text-blue-200">Trends</a>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="container mx-auto mt-8 px-4">
+        {% block content %}{% endblock %}
+    </div>
+    
+    <script>
+        // Auto-refresh every 5 minutes
+        setTimeout(function(){ location.reload(); }, 300000);
+    </script>
+</body>
+</html>
