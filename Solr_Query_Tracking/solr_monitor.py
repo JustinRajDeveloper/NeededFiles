@@ -907,8 +907,54 @@ if __name__ == "__main__":
         
         {% if comparison.is_different and comparison.differences %}
         <div class="bg-gray-50 p-4 rounded border-l-4 border-yellow-500">
-            <h4 class="font-semibold mb-2">Differences:</h4>
-            <pre class="text-xs bg-white p-2 rounded overflow-x-auto">{{ comparison.differences }}</pre>
+            <h4 class="font-semibold mb-2">Record-Level Changes:</h4>
+            
+            {% if comparison.added_count > 0 or comparison.removed_count > 0 or comparison.modified_count > 0 %}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                {% if comparison.added_count > 0 %}
+                <div class="bg-green-100 p-3 rounded">
+                    <div class="flex items-center">
+                        <i class="fas fa-plus-circle text-green-600 mr-2"></i>
+                        <div>
+                            <p class="font-semibold text-green-800">Added</p>
+                            <p class="text-2xl font-bold text-green-800">{{ comparison.added_count }}</p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if comparison.removed_count > 0 %}
+                <div class="bg-red-100 p-3 rounded">
+                    <div class="flex items-center">
+                        <i class="fas fa-minus-circle text-red-600 mr-2"></i>
+                        <div>
+                            <p class="font-semibold text-red-800">Removed</p>
+                            <p class="text-2xl font-bold text-red-800">{{ comparison.removed_count }}</p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if comparison.modified_count > 0 %}
+                <div class="bg-yellow-100 p-3 rounded">
+                    <div class="flex items-center">
+                        <i class="fas fa-edit text-yellow-600 mr-2"></i>
+                        <div>
+                            <p class="font-semibold text-yellow-800">Modified</p>
+                            <p class="text-2xl font-bold text-yellow-800">{{ comparison.modified_count }}</p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <div class="bg-white p-3 rounded">
+                <details class="cursor-pointer">
+                    <summary class="font-semibold mb-2">📋 View Detailed Differences</summary>
+                    <pre class="text-xs bg-gray-50 p-3 rounded overflow-x-auto border">{{ comparison.differences }}</pre>
+                </details>
+            </div>
         </div>
         {% endif %}
     </div>
