@@ -1,0 +1,7 @@
+com/assessment/ComponentTestBase.class
+com/assessment/AccountServiceComponentTest.class
+com/assessment/kafka/AccountEventProducerTest.class
+com/assessment/service/AccountServiceTest.class
+com/assessment/controller/AccountControllerTest.class
+com/assessment/service/external/ExternalValidationServiceTest.class
+com/assessment/kafka/AccountEventConsumerTest.class
