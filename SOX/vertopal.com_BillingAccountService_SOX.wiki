@@ -1,0 +1,52 @@
+{  {;;} {*;;}  
+
+  # SOX Compliance Analysis '96 New Microservice<br />
+<br />
+This document summarizes our initial analysis for building a new Spring Boot Java microservice with Cassandra DB and an '''Outbox pattern''' for external notifications.<br />
+It highlights considerations for SOX compliance and lists open questions.<br />
+<br />
+—<br />
+<br />
+## Key Compliance Areas<br />
+<br />
+### 1. Access Control &amp; Authorization<br />
+- Ensure '''only limited groups''' can update critical fields (e.g., <code>balance</code>, <code>openDate</code>, <code>cycleId</code>).<br />
+- Restrict UI exposure to '''only necessary fields''', avoiding unnecessary critical data exposure.<br />
+<br />
+### 2. Data Integrity &amp; Validation<br />
+- Strong validation rules to ensure input consistency and prevent unauthorized modifications.<br />
+<br />
+### 3. Audit Trail &amp; Immutable Logging<br />
+- '''Retention:''' Logs must be immutable and retained for '''7 years'''.<br />
+- '''Event Sourcing Pattern:'''<br />
+- Enables replay of events to rebuild or correct child tables.<br />
+- Provides stronger guarantees for auditability.<br />
+<br />
+### 4. SOX Compliance Monitoring<br />
+- Monitoring strategy to be defined in later phases.<br />
+<br />
+### 5. Configuration &amp; Deployment<br />
+- Deployment pipeline is mostly covered.<br />
+- May need '''stricter approval processes''' for SOX-sensitive microservices.<br />
+<br />
+—<br />
+<br />
+## Open Questions<br />
+<br />
+1. '''WORM Storage''' '96 Is it required for audit compliance?<br />
+2. '''Encryption''' '96 Should we enforce encryption '''at rest and in transit'''?<br />
+3. '''Data Tampering''' '96 If REST APIs are intranet-only, do we still need to mitigate this risk?<br />
+4. '''Cassandra Schema Flexibility''' '96 Can schema changes be allowed to resolve issues (e.g., querying by <code>openDate</code> and <code>cycleId</code> without Solr dependency)?<br />
+5. '''Event Sourcing vs. Digital History Table''' '96 Should we replace manual digital account history with event sourcing?<br />
+6. '''CQRS Adoption''' '96 Would separating read/write models improve compliance and performance?<br />
+7. '''Multi-Table Updates''' '96 How do we enforce the rule of '''no multiple table updates in a single API call'''?<br />
+8. '''Outbox &amp; Solr Handling''' '96 How do we ensure '''SOX compliance for outbox data''' and the '''Solr processor'''?<br />
+<br />
+—<br />
+<br />
+## Next Steps<br />
+- Validate whether WORM and encryption are '''mandatory requirements'''.<br />
+- Evaluate '''event sourcing + CQRS''' as potential architectural choices.<br />
+- Define governance for '''schema evolution''' in Cassandra.<br />
+- Assess compliance implications of the '''outbox + Solr pipeline'''.<br />
+}
