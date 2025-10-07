@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block breadcrumb %}
+<div class="breadcrumb">
+    <a href="/">Home</a><span>/</span><span>{{ team }}</span>
+</div>
+{% endblock %}
+{% block content %}
+<a href="/" class="back-button">Back to Home</a>
+<div style="margin-bottom: 32px;">
+    <h2 style="font-size: 28px; color: var(--att-gray-900); font-weight: 600; margin-bottom: 8px;">{{ team }} Team</h2>
+    <p style="color: var(--att-gray-700); font-size: 16px;">Select a category to access specific tools</p>
+</div>
+{% if team == 'CG' %}
+<div class="cards-grid">
+    <div class="card" onclick="window.location.href='/category/CG/BSSE'">
+        <div class="card-icon">
+            <i class="fas fa-building"></i>
+        </div>
+        <h3>BSSE</h3>
+        <p>Business Support System Environment</p>
+    </div>
+    <div class="card" onclick="window.location.href='/category/CG/SDLC'">
+        <div class="card-icon">
+            <i class="fas fa-code-branch"></i>
+        </div>
+        <h3>SDLC</h3>
+        <p>Software Development Lifecycle tools</p>
+    </div>
+</div>
+{% else %}
+<div class="cards-grid">
+    <div class="card" style="cursor: default; opacity: 0.7;">
+        <div class="card-icon" style="background: linear-gradient(135deg, var(--att-gray-300) 0%, var(--att-gray-300) 100%);">
+            <i class="fas fa-clock"></i>
+        </div>
+        <h3>Coming Soon</h3>
+        <p>Tools for {{ team }} will be available soon</p>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

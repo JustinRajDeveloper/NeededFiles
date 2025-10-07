@@ -1,0 +1,1266 @@
+{% extends "base.html" %}
+{% block breadcrumb %}
+<div class="breadcrumb">
+    <a href="/">Home</a><span>/</span><a href="/team/{{ team }}">{{ team }}</a><span>/</span><a href="/category/{{ team }}/{{ category }}">{{ category }}</a><span>/</span><span>{{ tool|replace('-', ' ')|title }}</span>
+</div>
+{% endblock %}
+{% block extra_css %}
+<style>
+    .view-toggle {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 24px;
+    }
+    .view-toggle-btn {
+        padding: 12px 24px;
+        border: 2px solid var(--att-blue);
+        background: white;
+        color: var(--att-blue);
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+    .view-toggle-btn.active {
+        background: linear-gradient(135deg, var(--att-blue) 0%, var(--att-dark-blue) 100%);
+        color: white;
+    }
+    .view-toggle-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 168, 224, 0.3);
+    }
+    .view-section {
+        display: none;
+    }
+    .view-section.active {
+        display: block;
+    }
+    .runs-table {
+        width: 100%;
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+    .runs-table table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .runs-table th {
+        background: linear-gradient(135deg, var(--att-dark-blue) 0%, var(--att-blue) 100%);
+        color: white;
+        padding: 16px;
+        text-align: left;
+        font-weight: 600;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .runs-table td {
+        padding: 16px;
+        border-bottom: 1px solid var(--att-gray-100);
+        color: var(--att-gray-900);
+    }
+    .runs-table tr:hover {
+        background: var(--att-gray-50);
+        cursor: pointer;
+    }
+    .runs-table tr:last-child td {
+        border-bottom: none;
+    }
+    .status-badge {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .status-completed {
+        background: rgba(0, 195, 137, 0.1);
+        color: var(--att-green);
+    }
+    .status-processing {
+        background: rgba(0, 168, 224, 0.1);
+        color: var(--att-blue);
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.6; }
+    }
+    .metric-card {
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        border-left: 4px solid;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+    .metric-card.success {
+        border-color: var(--att-green);
+    }
+    .metric-card.failed {
+        border-color: var(--att-orange);
+    }
+    .metric-card.total {
+        border-color: var(--att-blue);
+    }
+    .details-view {
+        margin-top: 24px;
+    }
+    .details-header {
+        background: white;
+        padding: 24px;
+        border-radius: 12px;
+        margin-bottom: 24px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+    .table-container {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 24px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 16px;
+    }
+    .data-table th {
+        background: var(--att-gray-50);
+        padding: 12px;
+        text-align: left;
+        font-weight: 600;
+        font-size: 13px;
+        color: var(--att-gray-900);
+        border-bottom: 2px solid var(--att-gray-200);
+    }
+    .data-table td {
+        padding: 12px;
+        border-bottom: 1px solid var(--att-gray-100);
+        font-size: 14px;
+        color: var(--att-gray-700);
+    }
+    .data-table tr:hover {
+        background: var(--att-gray-50);
+    }
+    .refresh-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--att-gray-700);
+        font-size: 13px;
+        padding: 8px 16px;
+        background: var(--att-gray-50);
+        border-radius: 6px;
+    }
+    .refresh-icon {
+        animation: rotate 2s linear infinite;
+    }
+    @keyframes rotate {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+{% block content %}
+<a href="/category/{{ team }}/{{ category }}" class="back-button">Back to {{ category }}</a>
+{% if tool == 'state-change' %}
+<div style="margin-bottom: 32px; display: flex; justify-content: space-between; align-items: center;">
+    <div>
+        <h2 style="font-size: 28px; color: var(--att-gray-900); font-weight: 600; margin-bottom: 8px;">State Change Management</h2>
+        <p style="color: var(--att-gray-700); font-size: 15px;">View all batch runs or create a new state change request</p>
+    </div>
+    <div id="refreshIndicator" class="refresh-indicator" style="display: none;">
+        <i class="fas fa-sync refresh-icon"></i>
+        <span>Auto-refreshing...</span>
+    </div>
+</div>
+
+<div class="view-toggle">
+    <button class="view-toggle-btn active" onclick="switchView('dashboard')">
+        <i class="fas fa-chart-bar"></i> Dashboard
+    </button>
+    <button class="view-toggle-btn" onclick="switchView('new-run')">
+        <i class="fas fa-plus-circle"></i> New Run
+    </button>
+</div>
+
+<!-- Dashboard View -->
+<div id="dashboardView" class="view-section active">
+    <div id="runsTableContainer">
+        <div style="text-align: center; padding: 60px; color: var(--att-gray-300);">
+            <i class="fas fa-spinner fa-spin" style="font-size: 48px;"></i>
+            <p style="margin-top: 16px; font-size: 16px;">Loading runs...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Details View -->
+<div id="detailsView" class="view-section">
+    <button class="back-button" onclick="backToDashboard()" style="margin-bottom: 20px;">
+        Back to Dashboard
+    </button>
+    <div id="detailsContent"></div>
+</div>
+
+<!-- New Run View -->
+<div id="newRunView" class="view-section">
+    <div class="form-container">
+        <h2>Create New State Change Run</h2>
+        <p style="color: var(--att-gray-700); margin-bottom: 32px; font-size: 15px;">Manage account state transitions with bulk processing capabilities</p>
+        <div id="alertContainer"></div>
+        <form id="stateChangeForm" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="targetSor"><i class="fas fa-database" style="margin-right: 8px; color: var(--att-blue);"></i>Target SOR *</label>
+                <input type="text" id="targetSor" name="target_sor" required placeholder="Enter target SOR">
+            </div>
+            <div class="form-group">
+                <label for="fromState"><i class="fas fa-toggle-off" style="margin-right: 8px; color: var(--att-blue);"></i>From State *</label>
+                <select id="fromState" name="from_state" required>
+                    <option value="">Select a state</option>
+                    <option value="ACTIVE">Active</option>
+                    <option value="INACTIVE">Inactive</option>
+                    <option value="SUSPENDED">Suspended</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="CLOSED">Closed</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="toState"><i class="fas fa-toggle-on" style="margin-right: 8px; color: var(--att-blue);"></i>To State *</label>
+                <select id="toState" name="to_state" required>
+                    <option value="">Select a state</option>
+                    <option value="ACTIVE">Active</option>
+                    <option value="INACTIVE">Inactive</option>
+                    <option value="SUSPENDED">Suspended</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="CLOSED">Closed</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label><i class="fas fa-file-excel" style="margin-right: 8px; color: var(--att-blue);"></i>Upload Excel File *</label>
+                <div class="file-upload" onclick="document.getElementById('excelFile').click()">
+                    <input type="file" id="excelFile" name="excel_file" accept=".xlsx,.xls" required>
+                    <p id="fileName" style="color: var(--att-gray-700); font-weight: 500;">Click to select Excel file</p>
+                    <p style="font-size: 13px; color: var(--att-gray-700); margin-top: 12px;">Excel file should contain 'account_number' column</p>
+                </div>
+            </div>
+            <div class="spinner" id="spinner"></div>
+            <button type="submit" class="btn" id="submitBtn"><i class="fas fa-paper-plane" style="margin-right: 8px;"></i>Submit</button>
+        </form>
+    </div>
+</div>
+<script>
+    let refreshInterval = null;
+    let currentBatchId = null;
+
+    // View switching
+    function switchView(view) {
+        document.querySelectorAll('.view-toggle-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.view-section').forEach(section => section.classList.remove('active'));
+
+        if (view === 'dashboard') {
+            event.target.classList.add('active');
+            document.getElementById('dashboardView').classList.add('active');
+            loadAllRuns();
+            startAutoRefresh();
+        } else if (view === 'new-run') {
+            event.target.classList.add('active');
+            document.getElementById('newRunView').classList.add('active');
+            stopAutoRefresh();
+        }
+    }
+
+    // Load all runs for dashboard
+    async function loadAllRuns() {
+        try {
+            const response = await fetch('/api/get_all_runs');
+            const data = await response.json();
+            displayRunsTable(data.runs);
+        } catch (error) {
+            document.getElementById('runsTableContainer').innerHTML = '<div style="text-align: center; padding: 60px; color: var(--att-orange);"><i class="fas fa-exclamation-triangle" style="font-size: 48px;"></i><p style="margin-top: 16px;">Error loading runs</p></div>';
+        }
+    }
+
+    // Display runs in table
+    function displayRunsTable(runs) {
+        const container = document.getElementById('runsTableContainer');
+
+        if (runs.length === 0) {
+            container.innerHTML = '<div style="text-align: center; padding: 60px; color: var(--att-gray-300);"><i class="fas fa-inbox" style="font-size: 48px;"></i><p style="margin-top: 16px; font-size: 16px;">No runs found</p><p style="margin-top: 8px; font-size: 14px;">Create your first run to get started</p></div>';
+            return;
+        }
+
+        let tableHTML = '<div class="runs-table"><table><thead><tr>';
+        tableHTML += '<th>Batch ID</th><th>Target SOR</th><th>State Transition</th>';
+        tableHTML += '<th>Total Accounts</th><th>Success</th><th>Failed</th>';
+        tableHTML += '<th>Created At</th><th>Status</th></tr></thead><tbody>';
+
+        runs.forEach(run => {
+            const statusClass = run.status === 'completed' ? 'status-completed' : 'status-processing';
+            const createdAt = new Date(run.created_at).toLocaleString();
+
+            tableHTML += `<tr onclick="viewRunDetails('${run.batch_id}')">`;
+            tableHTML += `<td><strong>${run.batch_id}</strong></td>`;
+            tableHTML += `<td>${run.target_sor}</td>`;
+            tableHTML += `<td>${run.from_state} <i class="fas fa-arrow-right" style="color: var(--att-blue); margin: 0 8px;"></i> ${run.to_state}</td>`;
+            tableHTML += `<td>${run.total_accounts}</td>`;
+            tableHTML += `<td><span style="color: var(--att-green); font-weight: 600;">${run.success_count}</span></td>`;
+            tableHTML += `<td><span style="color: var(--att-orange); font-weight: 600;">${run.failed_count}</span></td>`;
+            tableHTML += `<td>${createdAt}</td>`;
+            tableHTML += `<td><span class="status-badge ${statusClass}">${run.status}</span></td>`;
+            tableHTML += '</tr>';
+        });
+
+        tableHTML += '</tbody></table></div>';
+        container.innerHTML = tableHTML;
+    }
+
+    // View run details
+    async function viewRunDetails(batchId) {
+        currentBatchId = batchId;
+        stopAutoRefresh();
+
+        document.getElementById('dashboardView').classList.remove('active');
+        document.getElementById('detailsView').classList.add('active');
+
+        document.getElementById('detailsContent').innerHTML = '<div style="text-align: center; padding: 60px;"><i class="fas fa-spinner fa-spin" style="font-size: 48px; color: var(--att-blue);"></i><p style="margin-top: 16px;">Loading details...</p></div>';
+
+        try {
+            const response = await fetch(`/api/get_run_details/${batchId}`);
+            const data = await response.json();
+            displayRunDetails(data);
+            startDetailRefresh(batchId);
+        } catch (error) {
+            document.getElementById('detailsContent').innerHTML = '<div style="text-align: center; padding: 60px; color: var(--att-orange);"><i class="fas fa-exclamation-triangle" style="font-size: 48px;"></i><p style="margin-top: 16px;">Error loading details</p></div>';
+        }
+    }
+
+    // Display run details with success/failed tables
+    function displayRunDetails(data) {
+        const totalAccounts = data.success.length + data.failed.length;
+
+        let html = '<div class="details-header">';
+        html += `<h3 style="font-size: 24px; color: var(--att-gray-900); margin-bottom: 20px;">Batch ID: ${data.batch_id}</h3>`;
+        html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">';
+
+        html += '<div class="metric-card total">';
+        html += '<div style="color: var(--att-gray-700); font-size: 13px; margin-bottom: 8px;">Total Accounts</div>';
+        html += `<div style="color: var(--att-gray-900); font-size: 32px; font-weight: 700;">${totalAccounts}</div>`;
+        html += '</div>';
+
+        html += '<div class="metric-card success">';
+        html += '<div style="color: var(--att-gray-700); font-size: 13px; margin-bottom: 8px;">Successful</div>';
+        html += `<div style="color: var(--att-green); font-size: 32px; font-weight: 700;">${data.success.length}</div>`;
+        html += '</div>';
+
+        html += '<div class="metric-card failed">';
+        html += '<div style="color: var(--att-gray-700); font-size: 13px; margin-bottom: 8px;">Failed</div>';
+        html += `<div style="color: var(--att-orange); font-size: 32px; font-weight: 700;">${data.failed.length}</div>`;
+        html += '</div>';
+
+        html += '</div></div>';
+
+        // Success table
+        if (data.success.length > 0) {
+            html += '<div class="table-container">';
+            html += '<h3 style="color: var(--att-green); font-size: 20px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 10px;">';
+            html += '<i class="fas fa-check-circle"></i> Successful Accounts (' + data.success.length + ')';
+            html += '</h3>';
+            html += '<table class="data-table"><thead><tr>';
+            html += '<th>Account Number</th><th>Target SOR</th><th>State Transition</th><th>Response</th><th>Timestamp</th>';
+            html += '</tr></thead><tbody>';
+
+            data.success.forEach(record => {
+                html += '<tr>';
+                html += `<td><strong>${record.account_number}</strong></td>`;
+                html += `<td>${record.target_sor}</td>`;
+                html += `<td>${record.from_state} <i class="fas fa-arrow-right" style="color: var(--att-blue);"></i> ${record.to_state}</td>`;
+                html += `<td><code style="font-size: 12px; background: var(--att-gray-50); padding: 4px 8px; border-radius: 4px;">${record.response}</code></td>`;
+                html += `<td>${new Date(record.timestamp).toLocaleString()}</td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+        }
+
+        // Failed table
+        if (data.failed.length > 0) {
+            html += '<div class="table-container">';
+            html += '<h3 style="color: var(--att-orange); font-size: 20px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 10px;">';
+            html += '<i class="fas fa-times-circle"></i> Failed Accounts (' + data.failed.length + ')';
+            html += '</h3>';
+            html += '<table class="data-table"><thead><tr>';
+            html += '<th>Account Number</th><th>Target SOR</th><th>State Transition</th><th>Error</th><th>Timestamp</th>';
+            html += '</tr></thead><tbody>';
+
+            data.failed.forEach(record => {
+                html += '<tr>';
+                html += `<td><strong>${record.account_number}</strong></td>`;
+                html += `<td>${record.target_sor}</td>`;
+                html += `<td>${record.from_state} <i class="fas fa-arrow-right" style="color: var(--att-blue);"></i> ${record.to_state}</td>`;
+                html += `<td><code style="font-size: 12px; background: rgba(255, 108, 0, 0.1); color: var(--att-orange); padding: 4px 8px; border-radius: 4px;">${record.response}</code></td>`;
+                html += `<td>${new Date(record.timestamp).toLocaleString()}</td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+        }
+
+        document.getElementById('detailsContent').innerHTML = html;
+    }
+
+    // Back to dashboard
+    function backToDashboard() {
+        stopAutoRefresh();
+        currentBatchId = null;
+        document.getElementById('detailsView').classList.remove('active');
+        document.getElementById('dashboardView').classList.add('active');
+        loadAllRuns();
+        startAutoRefresh();
+    }
+
+    // Auto-refresh for dashboard
+    function startAutoRefresh() {
+        stopAutoRefresh();
+        document.getElementById('refreshIndicator').style.display = 'inline-flex';
+        refreshInterval = setInterval(() => {
+            loadAllRuns();
+        }, 5000); // Refresh every 5 seconds
+    }
+
+    // Auto-refresh for details view
+    function startDetailRefresh(batchId) {
+        stopAutoRefresh();
+        document.getElementById('refreshIndicator').style.display = 'inline-flex';
+        refreshInterval = setInterval(async () => {
+            try {
+                const response = await fetch(`/api/get_run_details/${batchId}`);
+                const data = await response.json();
+                displayRunDetails(data);
+            } catch (error) {
+                console.error('Error refreshing details:', error);
+            }
+        }, 3000); // Refresh every 3 seconds
+    }
+
+    function stopAutoRefresh() {
+        if (refreshInterval) {
+            clearInterval(refreshInterval);
+            refreshInterval = null;
+        }
+        document.getElementById('refreshIndicator').style.display = 'none';
+    }
+
+    // Form handling
+    document.getElementById('excelFile').addEventListener('change', function(e) {
+        const fileName = e.target.files[0]?.name || 'Click to select Excel file';
+        document.getElementById('fileName').textContent = fileName;
+    });
+
+    document.getElementById('stateChangeForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        const submitBtn = document.getElementById('submitBtn');
+        const spinner = document.getElementById('spinner');
+        const alertContainer = document.getElementById('alertContainer');
+
+        alertContainer.innerHTML = '';
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i>Processing...';
+        spinner.style.display = 'block';
+
+        try {
+            const response = await fetch('/process_state_change', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                alertContainer.innerHTML = `<div class="alert alert-success"><div><strong>Success!</strong> Batch ${data.batch_id} created with ${data.total_accounts} accounts. Processing in background.<br><button class="btn" onclick="viewRunDetails('${data.batch_id}')" style="margin-top: 12px; padding: 10px 20px; font-size: 13px;">View Run Details</button></div></div>`;
+                this.reset();
+                document.getElementById('fileName').textContent = 'Click to select Excel file';
+
+                // Auto-switch to dashboard after 3 seconds
+                setTimeout(() => {
+                    switchView('dashboard');
+                    viewRunDetails(data.batch_id);
+                }, 3000);
+            } else {
+                alertContainer.innerHTML = '<div class="alert alert-error"><div><strong>Error!</strong> ' + data.error + '</div></div>';
+            }
+        } catch (error) {
+            alertContainer.innerHTML = '<div class="alert alert-error"><div><strong>Error!</strong> ' + error.message + '</div></div>';
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-paper-plane" style="margin-right: 8px;"></i>Submit';
+            spinner.style.display = 'none';
+        }
+    });
+
+    // Initialize dashboard on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        loadAllRuns();
+        startAutoRefresh();
+    });
+</script>
+{% elif tool == 'rtb-first-bill' %}
+<!-- RTB First Bill Tool -->
+<div style="margin-bottom: 32px; display: flex; justify-content: space-between; align-items: center;">
+    <div>
+        <h2 style="font-size: 28px; color: var(--att-gray-900); font-weight: 600; margin-bottom: 8px;">RTB First Bill Reconciliation</h2>
+        <p style="color: var(--att-gray-700); font-size: 15px;">Compare Presto and Cosmos accounts for mismatches</p>
+    </div>
+    <div id="rtbRefreshIndicator" class="refresh-indicator" style="display: none;">
+        <i class="fas fa-sync refresh-icon"></i>
+        <span>Auto-refreshing...</span>
+    </div>
+</div>
+
+<div id="rtbTodayStatus" style="margin-bottom: 24px;"></div>
+
+<!-- Dashboard View -->
+<div id="rtbDashboardView">
+    <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="font-size: 20px; color: var(--att-gray-900); font-weight: 600;">All Runs History</h3>
+        <button class="btn" onclick="rtbTriggerNewRun()" style="padding: 12px 24px;">
+            <i class="fas fa-play" style="margin-right: 8px;"></i>Trigger New Run
+        </button>
+    </div>
+    <div id="rtbRunsTableContainer">
+        <div style="text-align: center; padding: 60px; color: var(--att-gray-300);">
+            <i class="fas fa-spinner fa-spin" style="font-size: 48px;"></i>
+            <p style="margin-top: 16px; font-size: 16px;">Loading runs...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Mismatch Details View -->
+<div id="rtbDetailsView" class="view-section">
+    <button class="back-button" onclick="rtbBackToDashboard()" style="margin-bottom: 20px;">
+        Back to Dashboard
+    </button>
+    <div id="rtbDetailsContent"></div>
+</div>
+
+<script>
+    let rtbRefreshInterval = null;
+    let rtbCurrentRunId = null;
+
+    // Check and trigger today's run
+    async function rtbCheckTodayRun() {
+        try {
+            const response = await fetch('/api/rtb/check_and_run');
+            const data = await response.json();
+
+            const statusDiv = document.getElementById('rtbTodayStatus');
+
+            if (data.run_exists) {
+                if (data.status === 'completed') {
+                    statusDiv.innerHTML = `<div class="alert alert-success"><div><i class="fas fa-check-circle"></i> Today's run completed (${data.run_id}). <button class="btn" onclick="rtbViewMismatchDetails('${data.run_id}')" style="margin-left: 12px; padding: 8px 16px; font-size: 13px;">View Details</button></div></div>`;
+                } else {
+                    statusDiv.innerHTML = `<div class="alert" style="background: rgba(0, 168, 224, 0.1); border-color: var(--att-blue);"><div><i class="fas fa-spinner fa-spin"></i> Today's run is processing (${data.run_id})...</div></div>`;
+                    rtbStartStatusMonitoring(data.run_id);
+                }
+            } else {
+                statusDiv.innerHTML = `<div class="alert" style="background: rgba(0, 168, 224, 0.1); border-color: var(--att-blue);"><div><i class="fas fa-rocket"></i> New run triggered for today (${data.run_id}). Processing in background...</div></div>`;
+                rtbStartStatusMonitoring(data.run_id);
+            }
+
+            rtbLoadAllRuns();
+        } catch (error) {
+            console.error('Error checking today\'s run:', error);
+        }
+    }
+
+    // Monitor run status
+    function rtbStartStatusMonitoring(runId) {
+        const checkStatus = async () => {
+            try {
+                const response = await fetch(`/api/rtb/get_run_status/${runId}`);
+                const data = await response.json();
+
+                if (data.status === 'completed') {
+                    clearInterval(rtbRefreshInterval);
+                    rtbCheckTodayRun();
+                    rtbLoadAllRuns();
+                }
+            } catch (error) {
+                console.error('Error checking status:', error);
+            }
+        };
+
+        rtbRefreshInterval = setInterval(checkStatus, 3000);
+    }
+
+    // Load all runs
+    async function rtbLoadAllRuns() {
+        try {
+            const response = await fetch('/api/rtb/get_all_runs');
+            const data = await response.json();
+            rtbDisplayRunsTable(data.runs);
+        } catch (error) {
+            document.getElementById('rtbRunsTableContainer').innerHTML = '<div style="text-align: center; padding: 60px; color: var(--att-orange);"><i class="fas fa-exclamation-triangle" style="font-size: 48px;"></i><p style="margin-top: 16px;">Error loading runs</p></div>';
+        }
+    }
+
+    // Display runs table
+    function rtbDisplayRunsTable(runs) {
+        const container = document.getElementById('rtbRunsTableContainer');
+
+        if (runs.length === 0) {
+            container.innerHTML = '<div style="text-align: center; padding: 60px; color: var(--att-gray-300);"><i class="fas fa-inbox" style="font-size: 48px;"></i><p style="margin-top: 16px; font-size: 16px;">No runs found</p><p style="margin-top: 8px; font-size: 14px;">Trigger your first run to get started</p></div>';
+            return;
+        }
+
+        let tableHTML = '<div class="runs-table"><table><thead><tr>';
+        tableHTML += '<th>Run Date</th><th>Run ID</th><th>Presto Count</th><th>Cosmos Count</th>';
+        tableHTML += '<th>Matching</th><th>Mismatched</th><th>Match Status</th><th>Status</th></tr></thead><tbody>';
+
+        runs.forEach(run => {
+            const statusClass = run.status === 'completed' ? 'status-completed' : 'status-processing';
+            const matchStatusClass = run.match_status === 'matched' ? 'status-completed' : 'status-badge';
+            const matchStatusStyle = run.match_status === 'matched' ? '' : 'background: rgba(255, 108, 0, 0.1); color: var(--att-orange);';
+            const runDate = new Date(run.run_date).toLocaleDateString();
+            const clickable = run.mismatch_count > 0 ? `onclick="rtbViewMismatchDetails('${run.run_id}')"` : '';
+            const cursorStyle = run.mismatch_count > 0 ? 'cursor: pointer;' : 'cursor: default;';
+
+            tableHTML += `<tr ${clickable} style="${cursorStyle}">`;
+            tableHTML += `<td><strong>${runDate}</strong></td>`;
+            tableHTML += `<td>${run.run_id}</td>`;
+            tableHTML += `<td>${run.presto_count}</td>`;
+            tableHTML += `<td>${run.cosmos_count}</td>`;
+            tableHTML += `<td><span style="color: var(--att-green); font-weight: 600;">${run.matching_count}</span></td>`;
+            tableHTML += `<td><span style="color: ${run.mismatch_count > 0 ? 'var(--att-orange)' : 'var(--att-green)'}; font-weight: 600;">${run.mismatch_count}</span></td>`;
+            tableHTML += `<td><span class="${matchStatusClass}" style="${matchStatusStyle}">${run.match_status.toUpperCase()}</span></td>`;
+            tableHTML += `<td><span class="status-badge ${statusClass}">${run.status}</span></td>`;
+            tableHTML += '</tr>';
+        });
+
+        tableHTML += '</tbody></table></div>';
+        container.innerHTML = tableHTML;
+    }
+
+    // View mismatch details
+    async function rtbViewMismatchDetails(runId) {
+        rtbCurrentRunId = runId;
+
+        document.getElementById('rtbDashboardView').style.display = 'none';
+        document.getElementById('rtbDetailsView').classList.add('active');
+
+        document.getElementById('rtbDetailsContent').innerHTML = '<div style="text-align: center; padding: 60px;"><i class="fas fa-spinner fa-spin" style="font-size: 48px; color: var(--att-blue);"></i><p style="margin-top: 16px;">Loading mismatch details...</p></div>';
+
+        try {
+            const response = await fetch(`/api/rtb/get_mismatch_details/${runId}`);
+            const data = await response.json();
+            rtbDisplayMismatchDetails(data);
+        } catch (error) {
+            document.getElementById('rtbDetailsContent').innerHTML = '<div style="text-align: center; padding: 60px; color: var(--att-orange);"><i class="fas fa-exclamation-triangle" style="font-size: 48px;"></i><p style="margin-top: 16px;">Error loading details</p></div>';
+        }
+    }
+
+    // Display mismatch details
+    function rtbDisplayMismatchDetails(data) {
+        const runInfo = data.run_info;
+
+        let html = '<div class="details-header">';
+        html += `<h3 style="font-size: 24px; color: var(--att-gray-900); margin-bottom: 8px;">Run Date: ${new Date(runInfo.run_date).toLocaleDateString()}</h3>`;
+        html += `<p style="color: var(--att-gray-700); margin-bottom: 20px;">Run ID: ${runInfo.run_id}</p>`;
+        html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">';
+
+        html += '<div class="metric-card" style="border-color: var(--att-purple);">';
+        html += '<div style="color: var(--att-gray-700); font-size: 13px; margin-bottom: 8px;">Presto Accounts</div>';
+        html += `<div style="color: var(--att-gray-900); font-size: 32px; font-weight: 700;">${runInfo.presto_count}</div>`;
+        html += '</div>';
+
+        html += '<div class="metric-card" style="border-color: var(--att-blue);">';
+        html += '<div style="color: var(--att-gray-700); font-size: 13px; margin-bottom: 8px;">Cosmos Accounts</div>';
+        html += `<div style="color: var(--att-gray-900); font-size: 32px; font-weight: 700;">${runInfo.cosmos_count}</div>`;
+        html += '</div>';
+
+        html += '<div class="metric-card success">';
+        html += '<div style="color: var(--att-gray-700); font-size: 13px; margin-bottom: 8px;">Matching</div>';
+        html += `<div style="color: var(--att-green); font-size: 32px; font-weight: 700;">${runInfo.matching_count}</div>`;
+        html += '</div>';
+
+        html += '<div class="metric-card failed">';
+        html += '<div style="color: var(--att-gray-700); font-size: 13px; margin-bottom: 8px;">Mismatched</div>';
+        html += `<div style="color: var(--att-orange); font-size: 32px; font-weight: 700;">${runInfo.mismatch_count}</div>`;
+        html += '</div>';
+
+        html += '</div></div>';
+
+        // Presto-only accounts table
+        if (data.presto_only.length > 0) {
+            html += '<div class="table-container">';
+            html += '<h3 style="color: var(--att-orange); font-size: 20px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 10px;">';
+            html += '<i class="fas fa-exclamation-triangle"></i> Accounts in Presto Only (' + data.presto_only.length + ')';
+            html += '</h3>';
+            html += '<p style="color: var(--att-gray-700); margin-bottom: 16px;">These accounts exist in Presto but are missing in Cosmos</p>';
+            html += '<table class="data-table"><thead><tr>';
+            html += '<th>Account Number</th><th>Source</th><th>Timestamp</th>';
+            html += '</tr></thead><tbody>';
+
+            data.presto_only.forEach(record => {
+                html += '<tr>';
+                html += `<td><strong>${record.account_number}</strong></td>`;
+                html += `<td><span style="background: rgba(138, 79, 158, 0.1); color: var(--att-purple); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">PRESTO ONLY</span></td>`;
+                html += `<td>${new Date(record.timestamp).toLocaleString()}</td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+        }
+
+        // Cosmos-only accounts table
+        if (data.cosmos_only.length > 0) {
+            html += '<div class="table-container">';
+            html += '<h3 style="color: var(--att-blue); font-size: 20px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 10px;">';
+            html += '<i class="fas fa-exclamation-triangle"></i> Accounts in Cosmos Only (' + data.cosmos_only.length + ')';
+            html += '</h3>';
+            html += '<p style="color: var(--att-gray-700); margin-bottom: 16px;">These accounts exist in Cosmos but are missing in Presto</p>';
+            html += '<table class="data-table"><thead><tr>';
+            html += '<th>Account Number</th><th>Source</th><th>Timestamp</th>';
+            html += '</tr></thead><tbody>';
+
+            data.cosmos_only.forEach(record => {
+                html += '<tr>';
+                html += `<td><strong>${record.account_number}</strong></td>`;
+                html += `<td><span style="background: rgba(0, 168, 224, 0.1); color: var(--att-blue); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">COSMOS ONLY</span></td>`;
+                html += `<td>${new Date(record.timestamp).toLocaleString()}</td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+        }
+
+        if (data.presto_only.length === 0 && data.cosmos_only.length === 0) {
+            html += '<div style="text-align: center; padding: 60px; color: var(--att-green);">';
+            html += '<i class="fas fa-check-circle" style="font-size: 64px;"></i>';
+            html += '<p style="margin-top: 16px; font-size: 20px; font-weight: 600;">Perfect Match!</p>';
+            html += '<p style="margin-top: 8px; font-size: 14px;">All accounts are synchronized between Presto and Cosmos</p>';
+            html += '</div>';
+        }
+
+        document.getElementById('rtbDetailsContent').innerHTML = html;
+    }
+
+    // Back to dashboard
+    function rtbBackToDashboard() {
+        rtbCurrentRunId = null;
+        document.getElementById('rtbDetailsView').classList.remove('active');
+        document.getElementById('rtbDashboardView').style.display = 'block';
+        rtbLoadAllRuns();
+    }
+
+    // Trigger new run manually
+    async function rtbTriggerNewRun() {
+        if (!confirm('Are you sure you want to trigger a new RTB First Bill run?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/rtb/trigger_run');
+            const data = await response.json();
+
+            if (data.success) {
+                const statusDiv = document.getElementById('rtbTodayStatus');
+                statusDiv.innerHTML = `<div class="alert" style="background: rgba(0, 168, 224, 0.1); border-color: var(--att-blue);"><div><i class="fas fa-rocket"></i> New run triggered (${data.run_id}). Processing in background...</div></div>`;
+                rtbStartStatusMonitoring(data.run_id);
+                rtbLoadAllRuns();
+            }
+        } catch (error) {
+            alert('Error triggering run: ' + error.message);
+        }
+    }
+
+    // Initialize RTB dashboard on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        if ('{{ tool }}' === 'rtb-first-bill') {
+            rtbCheckTodayRun();
+        }
+    });
+</script>
+
+{% elif tool == 'release-branch-creation' %}
+<!-- Release Branch Creation Tool -->
+<div style="margin-bottom: 32px;">
+    <h2 style="font-size: 28px; color: var(--att-gray-900); font-weight: 600; margin-bottom: 8px;">Release Branch Creation</h2>
+    <p style="color: var(--att-gray-700); font-size: 15px;">Automated release branch creation with Jira and GitHub integration</p>
+</div>
+
+<!-- Step 1: Release Version Input -->
+<div id="releaseStep1" class="form-container">
+    <h3 style="font-size: 20px; color: var(--att-gray-900); margin-bottom: 20px;">Step 1: Enter Release Version</h3>
+    <div id="releaseAlertContainer"></div>
+    <div class="form-group">
+        <label for="releaseVersion"><i class="fas fa-tag" style="margin-right: 8px; color: var(--att-blue);"></i>Release Version (Fix Version) *</label>
+        <input type="text" id="releaseVersion" placeholder="e.g., 25.10.08.REL" required>
+    </div>
+    <button class="btn" onclick="fetchJiraTickets()">
+        <i class="fas fa-search" style="margin-right: 8px;"></i>Fetch Jira Tickets
+    </button>
+    <div class="spinner" id="releaseSpinner" style="margin-top: 20px;"></div>
+</div>
+
+<!-- Step 2: Scrum Team Cards -->
+<div id="releaseStep2" style="display: none; margin-top: 30px;">
+    <h3 style="font-size: 20px; color: var(--att-gray-900); margin-bottom: 20px;">Step 2: Select Scrum Team</h3>
+    <div id="scrumTeamCards" class="cards-grid"></div>
+</div>
+
+<!-- Step 3: Component Selection -->
+<div id="releaseStep3" style="display: none; margin-top: 30px;">
+    <button class="back-button" onclick="backToScrumTeams()">Back to Scrum Teams</button>
+    <div class="form-container">
+        <h3 style="font-size: 20px; color: var(--att-gray-900); margin-bottom: 20px;" id="scrumTeamTitle"></h3>
+        <div class="form-group">
+            <label for="componentSelect"><i class="fas fa-cubes" style="margin-right: 8px; color: var(--att-blue);"></i>Select Component *</label>
+            <select id="componentSelect" onchange="loadBranches()">
+                <option value="">Select a component</option>
+            </select>
+        </div>
+        <div id="branchSelectionContainer" style="display: none;">
+            <div class="form-group">
+                <label for="fromBranch"><i class="fas fa-code-branch" style="margin-right: 8px; color: var(--att-blue);"></i>From Branch *</label>
+                <select id="fromBranch">
+                    <option value="">Loading...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="toBranch"><i class="fas fa-code-branch" style="margin-right: 8px; color: var(--att-blue);"></i>To Branch *</label>
+                <select id="toBranch">
+                    <option value="">Loading...</option>
+                </select>
+            </div>
+            <button class="btn" onclick="compareAndAnalyze()">
+                <i class="fas fa-search" style="margin-right: 8px;"></i>View Analysis
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Step 4: Analysis Results -->
+<div id="releaseStep4" style="display: none; margin-top: 30px;">
+    <button class="back-button" onclick="backToComponentSelection()">Back to Component Selection</button>
+    <div id="analysisResults"></div>
+</div>
+
+<script>
+    let releaseSessionId = null;
+    let releaseVersion = null;
+    let currentScrumTeam = null;
+    let currentComponent = null;
+    let analysisData = null;
+
+    // Step 1: Fetch Jira Tickets
+    async function fetchJiraTickets() {
+        const version = document.getElementById('releaseVersion').value.trim();
+
+        if (!version) {
+            alert('Please enter a release version');
+            return;
+        }
+
+        releaseVersion = version;
+        const alertContainer = document.getElementById('releaseAlertContainer');
+        const spinner = document.getElementById('releaseSpinner');
+
+        alertContainer.innerHTML = '';
+        spinner.style.display = 'block';
+
+        try {
+            const response = await fetch('/api/release/fetch_jira_tickets', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({fix_version: version})
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                releaseSessionId = data.session_id;
+                alertContainer.innerHTML = `<div class="alert alert-success"><div><i class="fas fa-check-circle"></i> Found ${data.total_tickets} tickets across ${data.scrum_teams.length} scrum teams</div></div>`;
+                displayScrumTeamCards(data.scrum_teams, data.scrum_team_data);
+                document.getElementById('releaseStep2').style.display = 'block';
+            } else {
+                alertContainer.innerHTML = `<div class="alert alert-error"><div><strong>Error!</strong> ${data.error}</div></div>`;
+            }
+        } catch (error) {
+            alertContainer.innerHTML = `<div class="alert alert-error"><div><strong>Error!</strong> ${error.message}</div></div>`;
+        } finally {
+            spinner.style.display = 'none';
+        }
+    }
+
+    // Display Scrum Team Cards
+    function displayScrumTeamCards(teams, teamData) {
+        const container = document.getElementById('scrumTeamCards');
+        let html = '';
+
+        teams.forEach(team => {
+            const count = teamData[team] || 0;
+            html += `<div class="card" onclick="selectScrumTeam('${team}')">`;
+            html += `<div class="card-icon"><i class="fas fa-users"></i></div>`;
+            html += `<h3>${team}</h3>`;
+            html += `<p>${count} tickets tagged for this release</p>`;
+            html += '</div>';
+        });
+
+        container.innerHTML = html;
+    }
+
+    // Step 2: Select Scrum Team
+    async function selectScrumTeam(team) {
+        currentScrumTeam = team;
+
+        document.getElementById('releaseStep2').style.display = 'none';
+        document.getElementById('releaseStep3').style.display = 'block';
+        document.getElementById('scrumTeamTitle').textContent = `Scrum Team: ${team}`;
+
+        // Load components
+        try {
+            const response = await fetch(`/api/release/get_components/${releaseSessionId}/${team}`);
+            const data = await response.json();
+
+            const select = document.getElementById('componentSelect');
+            select.innerHTML = '<option value="">Select a component</option>';
+
+            data.components.forEach(component => {
+                const option = document.createElement('option');
+                option.value = component;
+                option.textContent = component;
+                select.appendChild(option);
+            });
+        } catch (error) {
+            alert('Error loading components: ' + error.message);
+        }
+    }
+
+    // Step 3: Load Branches
+    async function loadBranches() {
+        const component = document.getElementById('componentSelect').value;
+
+        if (!component) {
+            document.getElementById('branchSelectionContainer').style.display = 'none';
+            return;
+        }
+
+        currentComponent = component;
+
+        try {
+            const response = await fetch(`/api/release/get_branches/${component}`);
+            const data = await response.json();
+
+            const fromSelect = document.getElementById('fromBranch');
+            const toSelect = document.getElementById('toBranch');
+
+            fromSelect.innerHTML = '<option value="">Select branch</option>';
+            toSelect.innerHTML = '<option value="">Select branch</option>';
+
+            data.branches.forEach(branch => {
+                const optionFrom = document.createElement('option');
+                optionFrom.value = branch;
+                optionFrom.textContent = branch;
+                fromSelect.appendChild(optionFrom);
+
+                const optionTo = document.createElement('option');
+                optionTo.value = branch;
+                optionTo.textContent = branch;
+                toSelect.appendChild(optionTo);
+            });
+
+            document.getElementById('branchSelectionContainer').style.display = 'block';
+        } catch (error) {
+            alert('Error loading branches: ' + error.message);
+        }
+    }
+
+    // Step 4: Compare and Analyze
+    async function compareAndAnalyze() {
+        const fromBranch = document.getElementById('fromBranch').value;
+        const toBranch = document.getElementById('toBranch').value;
+
+        if (!fromBranch || !toBranch) {
+            alert('Please select both From and To branches');
+            return;
+        }
+
+        document.getElementById('releaseStep3').style.display = 'none';
+        document.getElementById('releaseStep4').style.display = 'block';
+
+        document.getElementById('analysisResults').innerHTML = '<div style="text-align: center; padding: 60px;"><i class="fas fa-spinner fa-spin" style="font-size: 48px; color: var(--att-blue);"></i><p style="margin-top: 16px;">Analyzing...</p></div>';
+
+        try {
+            const response = await fetch('/api/release/compare_and_analyze', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    session_id: releaseSessionId,
+                    scrum_team: currentScrumTeam,
+                    component: currentComponent,
+                    from_branch: fromBranch,
+                    to_branch: toBranch
+                })
+            });
+
+            analysisData = await response.json();
+            displayAnalysisResults(analysisData);
+        } catch (error) {
+            document.getElementById('analysisResults').innerHTML = `<div class="alert alert-error"><div><strong>Error!</strong> ${error.message}</div></div>`;
+        }
+    }
+
+    // Display Analysis Results
+    function displayAnalysisResults(data) {
+        let html = '<div class="details-header">';
+        html += `<h3 style="font-size: 24px; color: var(--att-gray-900); margin-bottom: 8px;">Analysis: ${currentScrumTeam} - ${currentComponent}</h3>`;
+        html += `<p style="color: var(--att-gray-700); margin-bottom: 8px;">From: <strong>${data.from_branch}</strong> → To: <strong>${data.to_branch}</strong></p>`;
+        html += `<p style="color: var(--att-gray-700); margin-bottom: 20px;">Repository: ${data.repo_name}</p>`;
+        html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px;">';
+
+        html += '<div class="metric-card" style="border-color: var(--att-purple);">';
+        html += '<div style="color: var(--att-gray-700); font-size: 13px; margin-bottom: 8px;">Jira Tickets</div>';
+        html += `<div style="color: var(--att-gray-900); font-size: 32px; font-weight: 700;">${data.total_jira_tickets}</div>`;
+        html += '</div>';
+
+        html += '<div class="metric-card" style="border-color: var(--att-blue);">';
+        html += '<div style="color: var(--att-gray-700); font-size: 13px; margin-bottom: 8px;">Total Commits</div>';
+        html += `<div style="color: var(--att-gray-900); font-size: 32px; font-weight: 700;">${data.total_commits}</div>`;
+        html += '</div>';
+
+        html += '<div class="metric-card success">';
+        html += '<div style="color: var(--att-gray-700); font-size: 13px; margin-bottom: 8px;">Matched</div>';
+        html += `<div style="color: var(--att-green); font-size: 32px; font-weight: 700;">${data.analysis.matched.length}</div>`;
+        html += '</div>';
+
+        html += '<div class="metric-card failed">';
+        html += '<div style="color: var(--att-gray-700); font-size: 13px; margin-bottom: 8px;">Missing</div>';
+        html += `<div style="color: var(--att-orange); font-size: 32px; font-weight: 700;">${data.analysis.missing_in_branch.length}</div>`;
+        html += '</div>';
+
+        html += '<div class="metric-card" style="border-color: #D13438;">';
+        html += '<div style="color: var(--att-gray-700); font-size: 13px; margin-bottom: 8px;">Extra Commits</div>';
+        html += `<div style="color: #D13438; font-size: 32px; font-weight: 700;">${data.analysis.extra_in_branch.length}</div>`;
+        html += '</div>';
+
+        html += '</div></div>';
+
+        // Missing in Branch Table (RED - CRITICAL)
+        if (data.analysis.missing_in_branch.length > 0) {
+            html += '<div class="table-container" style="border-left: 4px solid var(--att-orange);">';
+            html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">';
+            html += '<h3 style="color: var(--att-orange); font-size: 20px; font-weight: 600; display: flex; align-items: center; gap: 10px;">';
+            html += `<i class="fas fa-exclamation-triangle"></i> Missing in ${data.to_branch} (${data.analysis.missing_in_branch.length})`;
+            html += '</h3>';
+            html += `<button class="btn" style="padding: 10px 20px; font-size: 14px; background: var(--att-orange);" onclick="sendMissingNotification()">`;
+            html += '<i class="fas fa-bell" style="margin-right: 8px;"></i>Send Teams Alert';
+            html += '</button></div>';
+            html += '<p style="color: var(--att-gray-700); margin-bottom: 16px;">⚠️ These stories are tagged for release but NOT found in master branch</p>';
+            html += '<table class="data-table"><thead><tr>';
+            html += '<th>Jira Key</th><th>Summary</th><th>Assignee</th><th>Status</th><th>Action</th>';
+            html += '</tr></thead><tbody>';
+
+            data.analysis.missing_in_branch.forEach(ticket => {
+                html += '<tr>';
+                html += `<td><a href="${ticket.jira_url}" target="_blank" style="color: var(--att-blue); font-weight: 600;">${ticket.key}</a></td>`;
+                html += `<td>${ticket.summary}</td>`;
+                html += `<td>${ticket.assignee}</td>`;
+                html += `<td><span style="background: var(--att-gray-100); padding: 4px 8px; border-radius: 4px; font-size: 12px;">${ticket.status}</span></td>`;
+                html += `<td><button class="btn" style="padding: 6px 12px; font-size: 12px;" onclick="alert('DM to ${ticket.assignee_email}')"><i class="fas fa-envelope"></i> DM</button></td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+        }
+
+        // Extra in Branch Table (CRITICAL - RED ALERT)
+        if (data.analysis.extra_in_branch.length > 0) {
+            html += '<div class="table-container" style="border-left: 4px solid #D13438;">';
+            html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">';
+            html += '<h3 style="color: #D13438; font-size: 20px; font-weight: 600; display: flex; align-items: center; gap: 10px;">';
+            html += `<i class="fas fa-exclamation-circle"></i> CRITICAL: Extra Commits Not Tagged (${data.analysis.extra_in_branch.length})`;
+            html += '</h3>';
+            html += `<button class="btn" style="padding: 10px 20px; font-size: 14px; background: #D13438;" onclick="sendExtraNotification()">`;
+            html += '<i class="fas fa-bell" style="margin-right: 8px;"></i>Send Critical Alert';
+            html += '</button></div>';
+            html += '<p style="color: #D13438; margin-bottom: 16px; font-weight: 600;">🚨 These commits will go to PRODUCTION but are NOT tagged for this release!</p>';
+            html += '<table class="data-table"><thead><tr>';
+            html += '<th>Jira Key</th><th>Commit Message</th><th>PR#</th><th>Author</th><th>Date</th>';
+            html += '</tr></thead><tbody>';
+
+            data.analysis.extra_in_branch.forEach(commit => {
+                html += '<tr style="background: rgba(209, 52, 56, 0.05);">';
+                html += `<td><strong style="color: #D13438;">${commit.jira_key}</strong></td>`;
+                html += `<td>${commit.message.substring(0, 80)}...</td>`;
+                html += `<td><a href="${commit.url}" target="_blank" style="color: var(--att-blue);">#${commit.pr_number}</a></td>`;
+                html += `<td>${commit.author}</td>`;
+                html += `<td>${new Date(commit.date).toLocaleDateString()}</td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+        }
+
+        // Matched Stories Table (GREEN - SUCCESS)
+        if (data.analysis.matched.length > 0) {
+            html += '<div class="table-container">';
+            html += '<h3 style="color: var(--att-green); font-size: 20px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 10px;">';
+            html += `<i class="fas fa-check-circle"></i> Matched Stories (${data.analysis.matched.length})`;
+            html += '</h3>';
+            html += '<table class="data-table"><thead><tr>';
+            html += '<th>Jira Key</th><th>Summary</th><th>PR</th><th>Commit</th><th>Author</th><th>Date</th>';
+            html += '</tr></thead><tbody>';
+
+            data.analysis.matched.forEach(match => {
+                html += '<tr>';
+                html += `<td><a href="${match.jira_url}" target="_blank" style="color: var(--att-blue); font-weight: 600;">${match.jira_key}</a></td>`;
+                html += `<td>${match.jira_summary.substring(0, 60)}...</td>`;
+                html += `<td><a href="${match.pr_url}" target="_blank" style="color: var(--att-blue);">#${match.pr_number}</a></td>`;
+                html += `<td><a href="${match.commit_url}" target="_blank" style="font-family: monospace; font-size: 11px;">${match.commit_sha.substring(0, 7)}</a></td>`;
+                html += `<td>${match.author}</td>`;
+                html += `<td>${new Date(match.date).toLocaleDateString()}</td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+        }
+
+        // Branch Comparison Info (commits in from but not in to)
+        if (data.ahead_by > 0) {
+            html += '<div class="table-container" style="border-left: 4px solid var(--att-blue);">';
+            html += '<h3 style="color: var(--att-blue); font-size: 20px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 10px;">';
+            html += `<i class="fas fa-info-circle"></i> ${data.from_branch} is ahead of ${data.to_branch} by ${data.ahead_by} commits`;
+            html += '</h3>';
+            html += '<p style="color: var(--att-gray-700);">These commits exist in the source branch but not in the target branch</p>';
+            html += '</div>';
+        }
+
+        // Create Release Branch Button
+        html += '<div style="background: white; padding: 32px; border-radius: 12px; margin-top: 30px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); text-align: center;">';
+        html += '<h3 style="font-size: 24px; color: var(--att-gray-900); margin-bottom: 20px;">Ready to Create Release Branch?</h3>';
+        html += '<div class="form-group" style="max-width: 500px; margin: 0 auto 24px auto;">';
+        html += '<label for="releaseBranchName" style="text-align: left;"><i class="fas fa-code-branch" style="margin-right: 8px; color: var(--att-blue);"></i>Release Branch Name *</label>';
+        html += `<input type="text" id="releaseBranchName" placeholder="e.g., release/${releaseVersion}" value="release/${releaseVersion}">`;
+        html += '</div>';
+        html += '<button class="btn" style="padding: 16px 48px; font-size: 16px;" onclick="createReleaseBranch()">';
+        html += '<i class="fas fa-rocket" style="margin-right: 8px;"></i>Create Release Branch from Master';
+        html += '</button>';
+        html += `<p style="margin-top: 12px; color: var(--att-gray-700); font-size: 13px;">This will create a new branch in ${data.repo_name} from master</p>`;
+        html += '</div>';
+
+        document.getElementById('analysisResults').innerHTML = html;
+    }
+
+    // Send Missing Notification
+    async function sendMissingNotification() {
+        try {
+            const response = await fetch('/api/release/send_missing_notification', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    scrum_team: currentScrumTeam,
+                    component: currentComponent,
+                    missing_tickets: analysisData.analysis.missing_in_branch,
+                    release_version: releaseVersion
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert('✅ Teams notification sent successfully!');
+            } else {
+                alert('Error sending notification: ' + result.error);
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+
+    // Send Extra Notification
+    async function sendExtraNotification() {
+        try {
+            const response = await fetch('/api/release/send_extra_notification', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    scrum_team: currentScrumTeam,
+                    component: currentComponent,
+                    extra_commits: analysisData.analysis.extra_in_branch,
+                    release_version: releaseVersion
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert('🚨 Critical alert sent to team!');
+            } else {
+                alert('Error sending notification: ' + result.error);
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+
+    // Create Release Branch
+    async function createReleaseBranch() {
+        const branchName = document.getElementById('releaseBranchName').value.trim();
+
+        if (!branchName) {
+            alert('Please enter a branch name');
+            return;
+        }
+
+        if (!confirm(`Are you sure you want to create branch "${branchName}" from master?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/release/create_branch', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    component: currentComponent,
+                    branch_name: branchName,
+                    from_branch: 'master',
+                    release_version: releaseVersion,
+                    scrum_team: currentScrumTeam
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert(`✅ Branch created successfully!\n\nBranch: ${result.branch_name}\nURL: ${result.url}`);
+                window.open(result.url, '_blank');
+            } else {
+                alert('Error creating branch: ' + result.error);
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+
+    // Navigation Functions
+    function backToScrumTeams() {
+        document.getElementById('releaseStep3').style.display = 'none';
+        document.getElementById('releaseStep2').style.display = 'block';
+    }
+
+    function backToComponentSelection() {
+        document.getElementById('releaseStep4').style.display = 'none';
+        document.getElementById('releaseStep3').style.display = 'block';
+    }
+</script>
+
+{% else %}
+<div class="form-container">
+    <h2 style="color: #333;">{{ tool|replace('-', ' ')|title }}</h2>
+    <p style="color: #666; margin-top: 15px;">This tool is under development.</p>
+</div>
+{% endif %}
+{% endblock %}

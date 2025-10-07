@@ -1,0 +1,30 @@
+{
+  "jira": {
+    "base_url": "https://your-jira-instance.atlassian.net",
+    "email": "your-email@company.com",
+    "api_token": "your-jira-api-token",
+    "jql_template": "project = PROJ AND fixVersion = '{fix_version}' ORDER BY created DESC"
+  },
+  "github": {
+    "token": "your-github-token",
+    "organization": "your-org",
+    "component_repos": {
+      "ComponentA": "repo-component-a",
+      "ComponentB": "repo-component-b",
+      "ComponentC": "repo-component-c"
+    }
+  },
+  "teams": {
+    "scrum_team_webhooks": {
+      "Scrum A": "https://outlook.office.com/webhook/your-scrum-a-webhook",
+      "Scrum B": "https://outlook.office.com/webhook/your-scrum-b-webhook",
+      "Scrum C": "https://outlook.office.com/webhook/your-scrum-c-webhook"
+    },
+    "enabled": true
+  },
+  "release": {
+    "default_base_branch": "master",
+    "feature_branch_pattern": "feature/",
+    "commit_message_pattern": "Merge pull request #\\d+ from feature/([A-Z]+-\\d+)"
+  }
+}

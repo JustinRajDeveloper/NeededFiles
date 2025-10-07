@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AT&T Admin Tool{% endblock %}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Omnes:wght@300;400;500;600;700&family=Aleck+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --att-blue: #00a8e0;
+            --att-dark-blue: #0057b8;
+            --att-navy: #004876;
+            --att-light-blue: #67b8e3;
+            --att-orange: #ff6c00;
+            --att-green: #00c389;
+            --att-purple: #8a4f9e;
+            --att-gray-50: #f7f8f9;
+            --att-gray-100: #e8eaed;
+            --att-gray-200: #d1d5db;
+            --att-gray-300: #9ca3af;
+            --att-gray-700: #374151;
+            --att-gray-900: #111827;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Aleck Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, var(--att-gray-50) 0%, #ffffff 100%);
+            color: var(--att-gray-900);
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--att-dark-blue) 0%, var(--att-blue) 100%);
+            color: white;
+            padding: 0;
+            box-shadow: 0 4px 20px rgba(0, 87, 184, 0.15);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="40" fill="white" opacity="0.03"/></svg>');
+            background-size: 100px 100px;
+            pointer-events: none;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header-logo {
+            position: absolute;
+            left: 40px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .logo-icon {
+            width: 64px;
+            height: 64px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .logo-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            padding: 8px;
+        }
+
+        .header-title {
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+            margin-bottom: 4px;
+        }
+
+        .header-subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+
+        .breadcrumb {
+            background-color: white;
+            padding: 16px 40px;
+            border-bottom: 1px solid var(--att-gray-100);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .breadcrumb a {
+            color: var(--att-blue);
+            text-decoration: none;
+            margin-right: 5px;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .breadcrumb a:hover {
+            color: var(--att-dark-blue);
+        }
+
+        .breadcrumb span {
+            color: var(--att-gray-300);
+            margin: 0 8px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 48px 40px;
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 24px;
+            margin-top: 32px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 2px solid transparent;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: linear-gradient(180deg, var(--att-blue) 0%, var(--att-dark-blue) 100%);
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .card::after {
+            content: '\f061';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            position: absolute;
+            right: 24px;
+            top: 50%;
+            transform: translateY(-50%) translateX(0);
+            color: var(--att-blue);
+            font-size: 20px;
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .card:hover {
+            box-shadow: 0 12px 32px rgba(0, 168, 224, 0.25);
+            transform: translateY(-8px);
+            border-color: var(--att-light-blue);
+        }
+
+        .card:hover::before {
+            width: 100%;
+            opacity: 0.05;
+        }
+
+        .card:hover::after {
+            opacity: 1;
+            transform: translateY(-50%) translateX(8px);
+        }
+
+        .card-icon {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, var(--att-blue) 0%, var(--att-dark-blue) 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0, 168, 224, 0.3);
+        }
+
+        .card h3 {
+            color: var(--att-gray-900);
+            font-size: 22px;
+            margin-bottom: 12px;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+        }
+
+        .card p {
+            color: var(--att-gray-700);
+            font-size: 14px;
+            line-height: 1.6;
+            font-weight: 400;
+        }
+
+        .form-container {
+            background: white;
+            border-radius: 16px;
+            padding: 48px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+            max-width: 800px;
+            border: 1px solid var(--att-gray-100);
+        }
+
+        .form-container h2 {
+            color: var(--att-gray-900);
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 32px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid var(--att-gray-100);
+        }
+
+        .form-group {
+            margin-bottom: 28px;
+        }
+
+        .form-group label {
+            display: block;
+            color: var(--att-gray-900);
+            font-weight: 600;
+            margin-bottom: 10px;
+            font-size: 14px;
+            letter-spacing: 0.3px;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid var(--att-gray-200);
+            border-radius: 8px;
+            font-size: 15px;
+            transition: all 0.3s;
+            font-family: inherit;
+            background: white;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--att-blue);
+            box-shadow: 0 0 0 3px rgba(0, 168, 224, 0.1);
+        }
+
+        .file-upload {
+            border: 2px dashed var(--att-blue);
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            background: linear-gradient(135deg, rgba(0, 168, 224, 0.03) 0%, rgba(103, 184, 227, 0.05) 100%);
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .file-upload::before {
+            content: '\f0ee';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            display: block;
+            font-size: 48px;
+            color: var(--att-blue);
+            margin-bottom: 16px;
+            opacity: 0.7;
+        }
+
+        .file-upload:hover {
+            background: linear-gradient(135deg, rgba(0, 168, 224, 0.08) 0%, rgba(103, 184, 227, 0.1) 100%);
+            border-color: var(--att-dark-blue);
+            transform: translateY(-2px);
+        }
+
+        .file-upload input[type="file"] {
+            display: none;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, var(--att-blue) 0%, var(--att-dark-blue) 100%);
+            color: white;
+            padding: 16px 48px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(0, 168, 224, 0.3);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            font-size: 14px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 168, 224, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            background: var(--att-gray-300);
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .spinner {
+            border: 4px solid var(--att-gray-100);
+            border-top: 4px solid var(--att-blue);
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            animation: spin 0.8s linear infinite;
+            margin: 24px auto;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .alert {
+            padding: 16px 20px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            border-left: 4px solid;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .alert::before {
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            font-size: 20px;
+        }
+
+        .alert-success {
+            background-color: rgba(0, 195, 137, 0.1);
+            color: #065f46;
+            border-color: var(--att-green);
+        }
+
+        .alert-success::before {
+            content: '\f058';
+            color: var(--att-green);
+        }
+
+        .alert-error {
+            background-color: rgba(255, 108, 0, 0.1);
+            color: #991b1b;
+            border-color: var(--att-orange);
+        }
+
+        .alert-error::before {
+            content: '\f06a';
+            color: var(--att-orange);
+        }
+
+        .back-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 24px;
+            color: var(--att-blue);
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s;
+            padding: 10px 16px;
+            border-radius: 6px;
+        }
+
+        .back-button:hover {
+            background: rgba(0, 168, 224, 0.1);
+            transform: translateX(-4px);
+        }
+
+        .back-button::before {
+            content: '\f060';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .card, .form-container {
+            animation: fadeIn 0.5s ease-out;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <div class="header-logo">
+                <div class="logo-icon">
+                    <img src="https://www.att.com/ecms/dam/att/consumer/global/logos/att_globe_500x500.png" alt="AT&T Logo">
+                </div>
+            </div>
+            <div class="header-title">
+                <h1>Admin Tool</h1>
+                <div class="header-subtitle">Enterprise Administration Platform</div>
+            </div>
+        </div>
+    </div>
+    {% block breadcrumb %}{% endblock %}
+    <div class="container">{% block content %}{% endblock %}</div>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

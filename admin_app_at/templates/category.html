@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block breadcrumb %}
+<div class="breadcrumb">
+    <a href="/">Home</a><span>/</span><a href="/team/{{ team }}">{{ team }}</a><span>/</span><span>{{ category }}</span>
+</div>
+{% endblock %}
+{% block content %}
+<a href="/team/{{ team }}" class="back-button">Back to {{ team }}</a>
+<div style="margin-bottom: 32px;">
+    <h2 style="font-size: 28px; color: var(--att-gray-900); font-weight: 600; margin-bottom: 8px;">{{ category }} Tools</h2>
+    <p style="color: var(--att-gray-700); font-size: 16px;">Select a tool to begin</p>
+</div>
+{% if category == 'SDLC' %}
+<div class="cards-grid">
+    <div class="card" onclick="window.location.href='/tool/{{ team }}/{{ category }}/release-branch-creation'">
+        <div class="card-icon">
+            <i class="fas fa-code-branch"></i>
+        </div>
+        <h3>Release Branch Creation</h3>
+        <p>Create and manage release branches</p>
+    </div>
+    <div class="card" onclick="window.location.href='/tool/{{ team }}/{{ category }}/release-summary'">
+        <div class="card-icon">
+            <i class="fas fa-chart-line"></i>
+        </div>
+        <h3>Release Summary</h3>
+        <p>View release summaries and reports</p>
+    </div>
+</div>
+{% elif category == 'BSSE' %}
+<div class="cards-grid">
+    <div class="card" onclick="window.location.href='/tool/{{ team }}/{{ category }}/rtb-first-bill'">
+        <div class="card-icon">
+            <i class="fas fa-file-invoice-dollar"></i>
+        </div>
+        <h3>RTB First Bill</h3>
+        <p>Ready to Bill first bill processing</p>
+    </div>
+    <div class="card" onclick="window.location.href='/tool/{{ team }}/{{ category }}/state-change'">
+        <div class="card-icon">
+            <i class="fas fa-exchange-alt"></i>
+        </div>
+        <h3>State Change</h3>
+        <p>Account state change management</p>
+    </div>
+</div>
+{% else %}
+<div class="cards-grid">
+    <div class="card" style="cursor: default; opacity: 0.7;">
+        <div class="card-icon" style="background: linear-gradient(135deg, var(--att-gray-300) 0%, var(--att-gray-300) 100%);">
+            <i class="fas fa-clock"></i>
+        </div>
+        <h3>Coming Soon</h3>
+        <p>Tools for {{ category }} will be available soon</p>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

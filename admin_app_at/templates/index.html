@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="margin-bottom: 32px;">
+    <h2 style="font-size: 28px; color: var(--att-gray-900); font-weight: 600; margin-bottom: 8px;">Welcome to Admin Tool</h2>
+    <p style="color: var(--att-gray-700); font-size: 16px;">Select a team to access administration tools and services</p>
+</div>
+<div class="cards-grid">
+    <div class="card" onclick="window.location.href='/team/CG'">
+        <div class="card-icon">
+            <i class="fas fa-users"></i>
+        </div>
+        <h3>CG</h3>
+        <p>Customer Group management and operations</p>
+    </div>
+    <div class="card" onclick="window.location.href='/team/BUPS'">
+        <div class="card-icon">
+            <i class="fas fa-server"></i>
+        </div>
+        <h3>BUPS</h3>
+        <p>Business Unit Processing Systems</p>
+    </div>
+    <div class="card" onclick="window.location.href='/team/IDM'">
+        <div class="card-icon">
+            <i class="fas fa-id-card"></i>
+        </div>
+        <h3>IDM</h3>
+        <p>Identity Management services</p>
+    </div>
+</div>
+{% endblock %}
